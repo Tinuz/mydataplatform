@@ -4,12 +4,13 @@ Complete lokale data platform met API gateway, SQL engine, visualization, data l
 
 ## 📋 Quick Links
 
+- **Amundsen**: http://localhost:5005 (Data Catalog & Glossary) ⭐
 - **Superset**: http://localhost:8088 (admin/admin)
 - **Marquez**: http://localhost:3001
 - **MinIO**: http://localhost:9001 (minio/minio12345)
 - **Trino**: http://localhost:8080
 - **Konga**: http://localhost:1337
-- **API Docs**: http://localhost:8081
+- **API Docs**: http://localhost:8082
 
 ## 🏗️ Architectuur
 
@@ -26,11 +27,18 @@ Storage (PostgreSQL, MinIO)
 ## ⚡ Start
 
 ```bash
-# Start platform
+# Start core platform
 docker-compose --profile standard up -d
+
+# Start Amundsen (data catalog)
+docker-compose --profile amundsen up -d
 
 # Load data
 docker-compose up etl
+
+# Load metadata into Amundsen
+python3 amundsen/databuilder_ingestion.py
+python3 amundsen/create_glossary.py
 
 # Check status
 docker-compose ps
@@ -40,6 +48,7 @@ docker-compose ps
 
 | Service | Port | Credentials |
 |---------|------|-------------|
+| **Amundsen** | 5005 | - |
 | PostgreSQL | 5432 | superset/superset |
 | MinIO | 9000, 9001 | minio/minio12345 |
 | Superset | 8088 | admin/admin |
@@ -48,6 +57,7 @@ docker-compose ps
 | Kong | 8000, 8001 | - |
 | Konga | 1337 | Setup bij eerste run |
 | Cell API | 3100 | - |
+| Neo4j (Amundsen) | 7474, 7687 | neo4j/test |
 
 ## 🔄 ETL Pipeline
 
@@ -65,13 +75,41 @@ docker-compose up etl
 
 ## 📊 Data Governance
 
-**Marquez UI:** http://localhost:3001
+### Amundsen - Data Catalog ⭐
+
+**UI:** http://localhost:5005
+
+**Features:**
+- 🔍 Data discovery & search
+- 📚 Business glossary (5 terms)
+- 📖 Column-level metadata (14 columns)
+- 🏷️ Tags & PII classification
+- 👥 Data ownership
+- 📈 Quality metrics (97%)
+
+**Setup:**
+```bash
+# Start Amundsen
+docker-compose --profile amundsen up -d
+
+# Load metadata
+python3 amundsen/databuilder_ingestion.py
+
+# Create business glossary
+python3 amundsen/create_glossary.py
+```
+
+**Demo:** See `amundsen/DEMO_SCRIPT.md` for 8-minute presentation
+
+### Marquez - Data Lineage
+
+**UI:** http://localhost:3001
 
 **Features:**
 - Visual lineage graph
-- 14 columns met metadata
-- PII classification (lat/lon)
+- Automated via OpenLineage
 - Job execution history
+- Technical metadata
 
 **API:**
 ```bash
@@ -81,6 +119,10 @@ curl http://localhost:5000/api/v1/namespaces/demo/datasets
 # Get dataset
 curl http://localhost:5000/api/v1/namespaces/demo/datasets/cell_towers.clean_204
 ```
+
+**Governance Strategy:**
+- **Amundsen**: Business context, glossary, discovery
+- **Marquez**: Technical lineage, job tracking
 
 ## 🔍 Query Examples
 

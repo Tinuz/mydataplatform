@@ -333,10 +333,89 @@ services:
     volumes:
       - ./api/openapi.yaml:/usr/share/nginx/html/openapi.yaml:ro
     ports:
-      - "8081:8080"
+      - "8082:8080"  # Changed from 8081 to avoid conflict with DataHub
     depends_on:
       - cell-api
     profiles: [ "standard" ]
+
+  # Amundsen Services
+  amundsen-neo4j:
+    image: neo4j:4.4.30
+    container_name: dp_amundsen_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/test
+      NEO4J_dbms_memory_heap_max__size: 512m
+    volumes:
+      - amundsen_neo4j:/data
+    ports:
+      - "7474:7474"  # Neo4j Browser
+      - "7687:7687"  # Bolt protocol
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "test", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: [ "amundsen" ]
+
+  amundsen-elasticsearch:
+    image: elasticsearch:8.10.2
+    container_name: dp_amundsen_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx512m
+    volumes:
+      - amundsen_elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: [ "amundsen" ]
+
+  amundsen-metadata:
+    image: amundsendev/amundsen-metadata:latest
+    container_name: dp_amundsen_metadata
+    depends_on:
+      amundsen-neo4j:
+        condition: service_healthy
+    environment:
+      PROXY_HOST: bolt://amundsen-neo4j
+      PROXY_PORT: 7687
+      PROXY_USER: neo4j
+      PROXY_PASSWORD: test
+      PROXY_ENCRYPTED: "False"
+    ports:
+      - "5002:5000"  # Metadata service API
+    profiles: [ "amundsen" ]
+
+  amundsen-search:
+    image: amundsendev/amundsen-search:latest
+    container_name: dp_amundsen_search
+    depends_on:
+      amundsen-elasticsearch:
+        condition: service_healthy
+    environment:
+      PROXY_ENDPOINT: http://amundsen-elasticsearch:9200
+    ports:
+      - "5001:5000"  # Search service API
+    profiles: [ "amundsen" ]
+
+  amundsen-frontend:
+    image: amundsendev/amundsen-frontend:latest
+    container_name: dp_amundsen_frontend
+    depends_on:
+      - amundsen-metadata
+      - amundsen-search
+    environment:
+      SEARCHSERVICE_BASE: http://amundsen-search:5000
+      METADATASERVICE_BASE: http://amundsen-metadata:5000
+      FRONTEND_SVC_CONFIG_MODULE_CLASS: amundsen_application.config.LocalConfig
+    ports:
+      - "5005:5000"  # Amundsen UI (changed to avoid conflict with Marquez)
+    profiles: [ "amundsen" ]
 
 volumes:
   pgdata:
@@ -344,5 +423,7 @@ volumes:
   konga_data:
   konga_pgdata:
   trino_data:
+  amundsen_neo4j:
+  amundsen_elasticsearch:
 
 
