@@ -1,0 +1,135 @@
+openapi: 3.0.3
+info:
+  title: Cell Towers API
+  version: "1.0.0"
+  description: >
+    Read-only API over `cell_towers.clean_204` in Postgres.
+servers:
+  - url: http://localhost:8000/api
+    description: Via Kong Gateway (aanbevolen)
+  - url: http://localhost:3100
+    description: Direct naar service (debug)
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              example: { "ok": true }
+
+  /towers:
+    get:
+      summary: List towers (met filters & paginatie)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+          description: Aantal records
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+          description: Paginatie offset
+        - in: query
+          name: radio
+          schema: { type: string, example: "LTE" }
+          description: Radio type (bijv. GSM, UMTS, LTE, NR)
+        - in: query
+          name: mcc
+          schema: { type: integer, example: 204 }
+          description: Mobile Country Code
+        - in: query
+          name: bbox
+          schema: { type: string, example: "4.7,52.2,5.2,52.5" }
+          description: Bounding box: minLon,minLat,maxLon,maxLat
+      responses:
+        '200':
+          description: Resultaat
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tower'
+              examples:
+                sample:
+                  value:
+                    count: 2
+                    items:
+                      - radio: "LTE"
+                        mcc: 204
+                        net: 8
+                        area: 123
+                        cell: 7517892683
+                        unit: 0
+                        lon: 5.121
+                        lat: 52.091
+                        range: 1200
+                        samples: 55
+                        changeable: 1
+                        created: 1693490000
+                        updated: 1698590000
+                        averageSignal: -92
+                      - radio: "LTE"
+                        mcc: 204
+                        net: 12
+                        area: 456
+                        cell: 7517892684
+                        unit: 0
+                        lon: 4.899
+                        lat: 52.372
+                        range: 800
+                        samples: 31
+                        changeable: 1
+                        created: 1693495000
+                        updated: 1698595000
+                        averageSignal: -87
+
+  /towers/{cell}:
+    get:
+      summary: Haal één tower op via cell-id
+      parameters:
+        - in: path
+          name: cell
+          required: true
+          schema: { type: string, pattern: '^[0-9]+$' }
+          description: BIGINT als string
+      responses:
+        '200':
+          description: Tower
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tower'
+        '404':
+          description: Niet gevonden
+          content:
+            application/json:
+              example: { "error": "not_found" }
+
+components:
+  schemas:
+    Tower:
+      type: object
+      properties:
+        radio: { type: string }
+        mcc: { type: integer }
+        net: { type: integer }
+        area: { type: integer }
+        cell: { type: string, description: "BIGINT als string" }
+        unit: { type: integer }
+        lon: { type: number, format: double }
+        lat: { type: number, format: double }
+        range: { type: integer }
+        samples: { type: integer }
+        changeable: { type: integer }
+        created: { type: integer, description: "epoch seconds" }
+        updated: { type: integer, description: "epoch seconds" }
+        averageSignal: { type: integer }

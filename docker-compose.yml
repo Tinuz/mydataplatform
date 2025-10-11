@@ -1,0 +1,348 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dp_postgres
+    environment:
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset
+      POSTGRES_DB: superset
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U superset" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    profiles: [ "tiny", "standard" ]
+
+  superset:
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+    image: dp_superset:latest
+    container_name: dp_superset
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SUPERSET_SECRET_KEY: "please_change_me"
+      SUPERSET_ENV: production
+      SUPERSET_LOAD_EXAMPLES: "no"
+      DATABASE_DB: superset
+      DATABASE_USER: superset
+      DATABASE_PASSWORD: superset
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      SUPERSET_DATABASE_URI: postgresql+psycopg2://superset:superset@postgres:5432/superset
+      WTF_CSRF_ENABLED: "False" # alleen voor lokale dev!
+      ENABLE_CORS: "True"
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./superset/superset_bootstrap.sh:/docker-entrypoint-initdb.d/superset_bootstrap.sh
+    deploy:
+      resources:
+        limits:
+          memory: 1.5g
+    profiles: [ "tiny", "standard" ]
+
+  minio:
+    image: minio/minio:latest
+    container_name: dp_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console
+    volumes:
+      - minio_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    profiles: [ "standard" ]
+
+  trino:
+    image: trinodb/trino:latest
+    container_name: dp_trino
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      # Voor Apple Silicon optimalisatie
+      JAVA_TOOL_OPTIONS: "-XX:+UseContainerSupport"
+      # S3/MinIO credentials (voor Hive connector)
+      AWS_ACCESS_KEY_ID: "minio"
+      AWS_SECRET_ACCESS_KEY: "minio12345"
+      AWS_REGION: "us-east-1"
+      S3_ENDPOINT: "http://minio:9000"
+      S3_PATH_STYLE_ACCESS: "true"
+    ports:
+      - "8080:8080"  # Trino Web UI en API
+    volumes:
+      - ./trino/config.properties:/etc/trino/config.properties:ro
+      - ./trino/node.properties:/etc/trino/node.properties:ro
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - trino_data:/data/trino
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+        reservations:
+          memory: 1g
+    profiles: [ "standard" ]
+
+  meltano:
+    image: meltano/meltano:latest
+    container_name: dp_meltano
+    working_dir: /project
+    command: [ "sleep", "infinity" ]
+    volumes:
+      - ./meltano:/project
+    profiles: [ "standard" ]
+
+  marquez:
+    platform: linux/arm64
+    image: marquezproject/marquez:0.51.1
+    # op M2: gebruik ARM of laat platform weg (Docker kiest zelf ARM)
+    container_name: dp_marquez
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # DB settings (zorg dat de DB 'marquez' bestaat)
+      MARQUEZ_DB_HOST: postgres
+      MARQUEZ_DB_PORT: 5432
+      MARQUEZ_DB_NAME: marquez
+      MARQUEZ_DB_USER: superset
+      MARQUEZ_DB_PASSWORD: superset
+      # API poort
+      MARQUEZ_PORT: 5000
+      # (optioneel) namespace die jij in ETL gebruikt
+      MARQUEZ_NAMESPACE: demo
+      # Als je config.yml mount, mag dat — maar dan hoeft MARQUEZ_URL niet
+      MARQUEZ_CONFIG: /app/config.yml
+    # Als je config mount: uncomment de volgende regel en zorg dat pad klopt
+    volumes:
+      - ./marquez/marquez-config.yml:/app/config.yml:ro
+    command: [ "./docker/wait-for-it.sh", "postgres:5432", "--", "./entrypoint.sh" ]
+    ports:
+      - "5000:5000" # alleen de API!
+    profiles: [ "standard" ]
+
+  marquez-web:
+    platform: linux/arm64
+    image: marquezproject/marquez-web:0.51.1
+    environment:
+      MARQUEZ_HOST: marquez # service-naam van de API
+      MARQUEZ_PORT: "5000" # interne API-poort
+      MARQUEZ_PATH: "" # laat leeg
+      MARQUEZ_TIMEOUT: "5000"
+      # Web server settings (vereist):
+      WEB_HOST: "0.0.0.0"
+      WEB_PORT: "3000"
+    ports:
+      - "3001:3000" # UI op http://localhost:3001
+    depends_on:
+      - marquez
+    profiles: [ "standard" ]
+
+  etl:
+    build:
+      context: ./etl
+      dockerfile: Dockerfile
+    container_name: dp_etl
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      superset:
+        condition: service_started
+      marquez:
+        condition: service_started
+    environment:
+      # --- Bron (PUBLIC) ---
+      FILE_URL: "https://storage.googleapis.com/cell_tower_data/204.csv"
+      RAW_FILENAME: "204.csv" # optioneel; standaard = basename(FILE_URL)
+
+      # --- MinIO (S3) ---
+      MINIO_ENDPOINT: "http://minio:9000"
+      MINIO_ACCESS_KEY: "minio"
+      MINIO_SECRET_KEY: "minio12345"
+      MINIO_BUCKET: "lake"
+      MINIO_RAW_PREFIX: "raw/celltowers/"
+      MINIO_CLEAN_PREFIX: "clean/celltowers/" # (nu niet gebruikt; gereserveerd voor evt. export)
+
+      # --- Postgres (warehouse) ---
+      PGHOST: "postgres"
+      PGPORT: "5432"
+      PGDATABASE: "superset"
+      PGUSER: "superset"
+      PGPASSWORD: "superset"
+
+      # --- Superset API (catalogus) ---
+      SUPERSET_URL: "http://superset:8088"
+      SUPERSET_USER: "admin"
+      SUPERSET_PASSWORD: "admin"
+
+      # --- Marquez (lineage/catalog) ---
+      MARQUEZ_URL: "http://marquez:5000"
+      MARQUEZ_NAMESPACE: "demo"
+      MARQUEZ_SOURCE_MINIO: "minio-lake"
+      MARQUEZ_SOURCE_PG: "postgres-warehouse"
+      MARQUEZ_JOB_NAME: "cell_towers_etl_v1"
+
+      # --- Pipeline parameters ---
+      SCHEMA_NAME: "cell_towers"
+      STAGING_TABLE: "stg_204"
+      CLEAN_TABLE: "clean_204"
+    volumes:
+      - ./etl/sql:/app/sql:ro
+    profiles: [ "standard" ]
+
+  cell-api:
+    build:
+      context: ./api
+    container_name: dp_cell_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: superset
+      PGUSER: superset
+      PGPASSWORD: superset
+      API_PORT: 3000
+    ports:
+      - "3100:3000" # optioneel voor directe debugging
+    profiles: [ "standard" ]
+
+  postgres_konga:
+    image: postgres:9.6-alpine
+    container_name: dp_postgres_konga
+    environment:
+      POSTGRES_USER: konga
+      POSTGRES_PASSWORD: konga
+      POSTGRES_DB: konga
+    volumes:
+      - konga_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # optioneel, alleen handig voor lokale psql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U konga -d konga || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    profiles: [ "standard" ]
+
+  kong:
+    image: kong:3.6
+    container_name: dp_kong
+    environment:
+      KONG_DATABASE: "off"  # DB-less mode - eenvoudig voor demo/development
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_LOG_LEVEL: notice
+      # Extra security
+      KONG_REAL_IP_HEADER: "X-Forwarded-For"
+      KONG_REAL_IP_RECURSIVE: "on"
+    volumes:
+      - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+    ports:
+      - "8000:8000"  # Proxy poort (API gateway)
+      - "8001:8001"  # Admin API poort
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    profiles: [ "standard" ]
+
+  konga:
+    image: pantsel/konga:latest
+    container_name: dp_konga
+    platform: linux/amd64
+    depends_on:
+      postgres_konga:
+        condition: service_healthy
+      kong:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # BELANGRIJK: Verander dit naar een sterke random string in productie!
+      # Genereer met: openssl rand -base64 32
+      TOKEN_SECRET: "jKz9mP2nQ5wX8vB3yL7tF6hR4dS1gA0e"
+      
+      # Database configuratie
+      DB_ADAPTER: "postgres"
+      DB_HOST: "postgres_konga"
+      DB_PORT: "5432"
+      DB_USER: "konga"
+      DB_PASSWORD: "konga"
+      DB_DATABASE: "konga"
+      
+      # Auto-migrate zorgt dat Konga de database schema's automatisch aanmaakt
+      KONGA_AUTO_MIGRATE: "true"
+      
+      # Optioneel: seed data voor eerste admin user (handig voor automation)
+      # KONGA_SEED_USER_DATA_SOURCE_FILE: "/app/userdb.data"
+    volumes:
+      - konga_data:/app/kongadata
+    ports:
+      - "1337:1337"  # Konga UI
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    profiles: [ "standard" ]
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    environment:
+      SWAGGER_JSON: /usr/share/nginx/html/openapi.yaml
+    volumes:
+      - ./api/openapi.yaml:/usr/share/nginx/html/openapi.yaml:ro
+    ports:
+      - "8081:8080"
+    depends_on:
+      - cell-api
+    profiles: [ "standard" ]
+
+volumes:
+  pgdata:
+  minio_data:
+  konga_data:
+  konga_pgdata:
+  trino_data:
+
+

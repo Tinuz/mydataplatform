@@ -1,0 +1,15 @@
+{
+  "name": "cell-towers-api",
+  "version": "1.0.0",
+  "description": "Simple read-only API over Postgres cell_towers.clean_204",
+  "main": "server.js",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "helmet": "^7.1.0",
+    "cors": "^2.8.5",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
+    }
+}
