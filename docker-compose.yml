@@ -342,6 +342,7 @@ services:
   amundsen-neo4j:
     image: neo4j:4.4.30
     container_name: dp_amundsen_neo4j
+    platform: linux/amd64
     environment:
       NEO4J_AUTH: neo4j/test
       NEO4J_dbms_memory_heap_max__size: 512m
@@ -360,6 +361,7 @@ services:
   amundsen-elasticsearch:
     image: elasticsearch:8.10.2
     container_name: dp_amundsen_elasticsearch
+    platform: linux/amd64
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -378,6 +380,7 @@ services:
   amundsen-metadata:
     image: amundsendev/amundsen-metadata:latest
     container_name: dp_amundsen_metadata
+    platform: linux/amd64
     depends_on:
       amundsen-neo4j:
         condition: service_healthy
@@ -394,6 +397,7 @@ services:
   amundsen-search:
     image: amundsendev/amundsen-search:latest
     container_name: dp_amundsen_search
+    platform: linux/amd64
     depends_on:
       amundsen-elasticsearch:
         condition: service_healthy
@@ -406,12 +410,13 @@ services:
   amundsen-frontend:
     image: amundsendev/amundsen-frontend:latest
     container_name: dp_amundsen_frontend
+    platform: linux/amd64
     depends_on:
       - amundsen-metadata
       - amundsen-search
     environment:
-      SEARCHSERVICE_BASE: http://amundsen-search:5000
-      METADATASERVICE_BASE: http://amundsen-metadata:5000
+      SEARCHSERVICE_BASE: http://amundsen-search:5001
+      METADATASERVICE_BASE: http://amundsen-metadata:5002
       FRONTEND_SVC_CONFIG_MODULE_CLASS: amundsen_application.config.LocalConfig
     ports:
       - "5005:5000"  # Amundsen UI (changed to avoid conflict with Marquez)
