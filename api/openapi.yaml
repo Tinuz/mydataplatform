@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: Cell Towers API
+  title: Data Platform API
   version: "1.0.0"
   description: >
-    Read-only API over `cell_towers.clean_204` in Postgres.
+    Read-only API for Cell Towers and Weather data.
 servers:
   - url: http://localhost:8000/api
     description: Via Kong Gateway (aanbevolen)
@@ -114,6 +114,123 @@ paths:
             application/json:
               example: { "error": "not_found" }
 
+  /weather/observations:
+    get:
+      summary: List weather observations (met filters & paginatie)
+      parameters:
+        - in: query
+          name: station
+          schema: { type: string, example: "Amsterdam" }
+          description: Station naam (fuzzy match)
+        - in: query
+          name: start_date
+          schema: { type: string, format: date-time, example: "2025-01-01" }
+          description: Start datum (timestamp >=)
+        - in: query
+          name: end_date
+          schema: { type: string, format: date-time, example: "2025-01-31" }
+          description: Eind datum (timestamp <=)
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+          description: Aantal records
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+          description: Paginatie offset
+      responses:
+        '200':
+          description: Resultaat
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeatherObservation'
+              examples:
+                sample:
+                  value:
+                    count: 2
+                    items:
+                      - station_name: "Amsterdam"
+                        timestamp: "2025-01-12T12:00:00Z"
+                        temperature: 8.5
+                        humidity: 82
+                        wind_speed: 15.3
+                        precipitation: 0.0
+                        rain: 0.0
+                        wind_direction: 210
+                        pressure: 1013.2
+                        feels_like_temp: 6.2
+                        data_quality: "good"
+                      - station_name: "Rotterdam"
+                        timestamp: "2025-01-12T12:00:00Z"
+                        temperature: 9.1
+                        humidity: 78
+                        wind_speed: 18.5
+                        precipitation: 0.2
+                        rain: 0.0
+                        wind_direction: 220
+                        pressure: 1012.8
+                        feels_like_temp: 6.8
+                        data_quality: "good"
+
+  /weather/observations/latest:
+    get:
+      summary: Get latest observation per station
+      parameters:
+        - in: query
+          name: station
+          schema: { type: string, example: "Amsterdam" }
+          description: Filter by station naam (fuzzy match)
+      responses:
+        '200':
+          description: Latest observations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeatherObservation'
+
+  /weather/stations:
+    get:
+      summary: List all weather stations met metrics
+      responses:
+        '200':
+          description: Weather stations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeatherStation'
+              examples:
+                sample:
+                  value:
+                    count: 7
+                    items:
+                      - station_name: "Amsterdam"
+                        latitude: 52.3676
+                        longitude: 4.9041
+                        total_observations: 145
+                        last_observation: "2025-01-12T12:45:00Z"
+                        avg_temperature: 8.5
+                        min_temperature: 3.2
+                        max_temperature: 15.8
+
 components:
   schemas:
     Tower:
@@ -133,3 +250,32 @@ components:
         created: { type: integer, description: "epoch seconds" }
         updated: { type: integer, description: "epoch seconds" }
         averageSignal: { type: integer }
+
+    WeatherObservation:
+      type: object
+      properties:
+        station_name: { type: string }
+        timestamp: { type: string, format: date-time }
+        temperature: { type: number, format: float }
+        humidity: { type: number, format: float }
+        wind_speed: { type: number, format: float }
+        precipitation: { type: number, format: float }
+        rain: { type: number, format: float }
+        wind_direction: { type: integer }
+        pressure: { type: number, format: float }
+        feels_like_temp: { type: number, format: float }
+        data_quality: { type: string }
+        ingestion_time: { type: string, format: date-time }
+        processed_at: { type: string, format: date-time }
+
+    WeatherStation:
+      type: object
+      properties:
+        station_name: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+        total_observations: { type: integer }
+        last_observation: { type: string, format: date-time }
+        avg_temperature: { type: number, format: float }
+        min_temperature: { type: number, format: float }
+        max_temperature: { type: number, format: float }

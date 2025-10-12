@@ -4,13 +4,14 @@ Complete lokale data platform met API gateway, SQL engine, visualization, data l
 
 ## 📋 Quick Links
 
+- **Weather API**: http://localhost:8000/api/v1/weather (see [docs/WEATHER_API.md](docs/WEATHER_API.md)) 🌤️
 - **Amundsen**: http://localhost:5005 (Data Catalog & Glossary) ⭐
 - **Superset**: http://localhost:8088 (admin/admin)
 - **Marquez**: http://localhost:3001
 - **MinIO**: http://localhost:9001 (minio/minio12345)
 - **Trino**: http://localhost:8080
 - **Konga**: http://localhost:1337
-- **API Docs**: http://localhost:8082
+- **API Docs**: http://localhost:8000/docs
 
 ## 🏗️ Architectuur
 
@@ -48,6 +49,7 @@ docker-compose ps
 
 | Service | Port | Credentials |
 |---------|------|-------------|
+| **Weather API** | 8000/api/v1/weather | API Key: demo-weather-api-key-2025 |
 | **Amundsen** | 5005 | - |
 | PostgreSQL | 5432 | superset/superset |
 | MinIO | 9000, 9001 | minio/minio12345 |
@@ -58,6 +60,38 @@ docker-compose ps
 | Konga | 1337 | Setup bij eerste run |
 | Cell API | 3100 | - |
 | Neo4j (Amundsen) | 7474, 7687 | neo4j/test |
+
+## 🌤️ Weather API
+
+**Base URL:** http://localhost:8000/api/v1/weather
+
+**Authentication:** API Key required (Header: `X-API-Key`)
+
+**Rate Limits:**
+- 100 requests/minute
+- 5,000 requests/hour
+
+**Endpoints:**
+- `GET /observations/latest` - Latest weather per station
+- `GET /observations` - Historical observations (with filters)
+- `GET /stations` - Station metadata with GPS coordinates
+
+**Quick Start:**
+```bash
+# Get latest weather
+curl -H "X-API-Key: demo-weather-api-key-2025" \
+  http://localhost:8000/api/v1/weather/observations/latest
+
+# Get Amsterdam observations
+curl -H "X-API-Key: demo-weather-api-key-2025" \
+  "http://localhost:8000/api/v1/weather/observations?station=Amsterdam&limit=10"
+
+# Get all stations
+curl -H "X-API-Key: demo-weather-api-key-2025" \
+  http://localhost:8000/api/v1/weather/stations
+```
+
+**Documentation:** See [docs/WEATHER_API.md](docs/WEATHER_API.md) for complete API reference.
 
 ## 🔄 ETL Pipeline
 

@@ -103,6 +103,95 @@ const sql = `
     }
 });
 
+// GET /api/v1/weather/observations?station=Amsterdam&start_date=2025-01-01&end_date=2025-01-31&limit=100
+app.get("/api/v1/weather/observations", async (req, res) => {
+    const { station, start_date, end_date, limit = "100", offset = "0" } = req.query;
+
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
+    const off = Math.max(parseInt(offset, 10) || 0, 0);
+
+    const where = [];
+    const params = [];
+    let i = 1;
+
+    if (station) {
+        where.push(`station_name ILIKE $${i++}`);
+        params.push(`%${String(station)}%`);
+    }
+    if (start_date) {
+        where.push(`timestamp >= $${i++}`);
+        params.push(String(start_date));
+    }
+    if (end_date) {
+        where.push(`timestamp <= $${i++}`);
+        params.push(String(end_date));
+    }
+
+    const sql = `
+  SELECT
+    station_name, timestamp, temperature, humidity, wind_speed,
+    precipitation, rain, wind_direction, pressure, feels_like_temp,
+    data_quality, ingestion_time, processed_at
+  FROM weather.observations
+  ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+  ORDER BY timestamp DESC
+  LIMIT $${i} OFFSET $${i + 1}
+`;
+    params.push(lim, off);
+
+    try {
+        const { rows } = await pool.query(sql, params);
+        res.json({ count: rows.length, items: rows });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "query_failed" });
+    }
+});
+
+// GET /api/v1/weather/observations/latest - Get latest observation per station
+app.get("/api/v1/weather/observations/latest", async (req, res) => {
+    const { station } = req.query;
+
+    const where = station ? `WHERE station_name ILIKE $1` : "";
+    const params = station ? [`%${String(station)}%`] : [];
+
+    const sql = `
+  SELECT
+    station_name, timestamp, temperature, humidity, wind_speed,
+    feels_like_temp, pressure, data_quality
+  FROM weather.latest_weather
+  ${where}
+  ORDER BY station_name
+`;
+
+    try {
+        const { rows } = await pool.query(sql, params);
+        res.json({ count: rows.length, items: rows });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "query_failed" });
+    }
+});
+
+// GET /api/v1/weather/stations - Get all weather stations
+app.get("/api/v1/weather/stations", async (req, res) => {
+    const sql = `
+  SELECT
+    station_name, latitude, longitude, total_observations,
+    last_observation, avg_temperature, min_temperature, max_temperature
+  FROM weather.station_metrics
+  ORDER BY station_name
+`;
+
+    try {
+        const { rows } = await pool.query(sql);
+        res.json({ count: rows.length, items: rows });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "query_failed" });
+    }
+});
+
 // Serve OpenAPI & Swagger UI
 const openapiPath = path.join(__dirname, "openapi.yaml");
 const openapiDoc = YAML.load(openapiPath);

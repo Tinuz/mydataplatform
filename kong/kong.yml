@@ -17,6 +17,25 @@ services:
       - name: spec-root
         paths: ["/openapi.yaml"]
         strip_path: false
+
+# Weather API endpoints with tighter rate limiting
+  - name: weather-api-svc
+    url: http://cell-api:3000
+    routes:
+      - name: weather-observations
+        paths: ["/api/v1/weather/observations"]
+        strip_path: false
+        methods: ["GET", "OPTIONS"]
+        
+      - name: weather-observations-latest
+        paths: ["/api/v1/weather/observations/latest"]
+        strip_path: false
+        methods: ["GET", "OPTIONS"]
+        
+      - name: weather-stations
+        paths: ["/api/v1/weather/stations"]
+        strip_path: false
+        methods: ["GET", "OPTIONS"]
         
 plugins:
   # Basic CORS (client-friendly)
@@ -29,8 +48,33 @@ plugins:
       credentials: false
       max_age: 3600
 
-  # Rate limit per IP (lekker safe defaults)
+  # Rate limit per IP (lekker safe defaults) - for general API
   - name: rate-limiting
+    service: cell-towers-svc
     config:
       minute: 600
       policy: local
+
+  # Tighter rate limiting for weather API
+  - name: rate-limiting
+    service: weather-api-svc
+    config:
+      minute: 100
+      hour: 5000
+      policy: local
+
+  # API Key authentication for weather endpoints
+  - name: key-auth
+    service: weather-api-svc
+    config:
+      key_names: ["apikey", "X-API-Key"]
+      hide_credentials: true
+
+consumers:
+  - username: weather-client
+    keyauth_credentials:
+      - key: demo-weather-api-key-2025
+      
+  - username: internal-dagster
+    keyauth_credentials:
+      - key: dagster-internal-key-secure
