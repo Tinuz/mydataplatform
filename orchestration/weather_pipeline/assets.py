@@ -16,6 +16,13 @@ from sqlalchemy import create_engine, text
 import great_expectations as gx
 from great_expectations.core.batch import RuntimeBatchRequest
 
+# Import OpenLineage hooks
+try:
+    from .openlineage_hooks import openlineage_success_hook, openlineage_failure_hook
+    HOOKS_AVAILABLE = True
+except ImportError:
+    HOOKS_AVAILABLE = False
+
 
 # Configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
@@ -44,7 +51,10 @@ def get_postgres_engine():
     return create_engine(POSTGRES_CONN)
 
 
-@asset(group_name="weather_bronze")
+@asset(
+    group_name="weather_bronze",
+    op_tags={"kind": "api", "source": "open-meteo"}
+)
 def raw_weather_data(context: AssetExecutionContext) -> Output[pd.DataFrame]:
     """
     Fetch current weather data from Open-Meteo API for major Dutch cities
@@ -153,7 +163,11 @@ def raw_weather_data(context: AssetExecutionContext) -> Output[pd.DataFrame]:
     )
 
 
-@asset(group_name="weather_bronze", deps=[raw_weather_data])
+@asset(
+    group_name="weather_bronze", 
+    deps=[raw_weather_data],
+    op_tags={"kind": "quality", "framework": "great-expectations"}
+)
 def weather_quality_check(context: AssetExecutionContext) -> Output[dict]:
     """
     Run Great Expectations quality checks on raw weather data
@@ -285,7 +299,11 @@ def weather_quality_check(context: AssetExecutionContext) -> Output[dict]:
     )
 
 
-@asset(group_name="weather_silver", deps=[weather_quality_check])
+@asset(
+    group_name="weather_silver", 
+    deps=[weather_quality_check],
+    op_tags={"kind": "transformation", "layer": "silver"}
+)
 def clean_weather_data(context: AssetExecutionContext) -> Output[pd.DataFrame]:
     """
     Transform and clean weather data, save to silver layer
@@ -360,7 +378,11 @@ def clean_weather_data(context: AssetExecutionContext) -> Output[pd.DataFrame]:
     )
 
 
-@asset(group_name="weather_gold", deps=[clean_weather_data])
+@asset(
+    group_name="weather_gold", 
+    deps=[clean_weather_data],
+    op_tags={"kind": "database", "destination": "postgresql"}
+)
 def weather_to_postgres(context: AssetExecutionContext) -> Output[int]:
     """
     Load clean weather data into PostgreSQL warehouse

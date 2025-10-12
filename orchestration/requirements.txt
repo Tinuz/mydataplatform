@@ -3,6 +3,9 @@ dagster==1.9.3
 dagster-webserver==1.9.3
 dagster-postgres==0.25.3
 
+# Lineage & Observability (latest version for protobuf compatibility)
+openlineage-python==1.9.1
+
 # Data Processing
 pandas==2.2.0
 pyarrow==14.0.1
