@@ -26,5 +26,16 @@ ENV PYTHONPATH=/opt/dagster/app
 # Create dagster home directory
 RUN mkdir -p $DAGSTER_HOME
 
-# Default command (webserver) - point to weather_pipeline module
-CMD ["dagster", "dev", "-h", "0.0.0.0", "-p", "3000", "-m", "weather_pipeline"]
+# Create startup script that runs both daemon and webserver
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "Starting Dagster daemon..."\n\
+dagster-daemon run &\n\
+\n\
+echo "Starting Dagster webserver..."\n\
+dagster-webserver -h 0.0.0.0 -p 3000 -w /opt/dagster/app/workspace.yaml\n\
+' > /opt/dagster/start.sh && chmod +x /opt/dagster/start.sh
+
+# Use startup script
+CMD ["/opt/dagster/start.sh"]

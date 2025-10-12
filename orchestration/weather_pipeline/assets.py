@@ -12,7 +12,7 @@ import pandas as pd
 import requests
 from dagster import asset, AssetExecutionContext, Output, MetadataValue
 from minio import Minio
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import great_expectations as gx
 from great_expectations.core.batch import RuntimeBatchRequest
 
@@ -165,8 +165,11 @@ def weather_quality_check(context: AssetExecutionContext) -> Output[dict]:
     now = datetime.now()
     partition_path = f"bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}/{now.hour:02d}"
     
-    # List objects in partition
-    objects = list(minio_client.list_objects(MINIO_BUCKET, prefix=partition_path))
+    # List objects in partition (recursive to get actual files, not directories)
+    objects = list(minio_client.list_objects(MINIO_BUCKET, prefix=partition_path, recursive=True))
+    
+    # Filter out directories (objects ending with /)
+    objects = [obj for obj in objects if not obj.object_name.endswith('/')]
     
     if not objects:
         context.log.warning("No weather data found in bronze layer")
@@ -174,6 +177,8 @@ def weather_quality_check(context: AssetExecutionContext) -> Output[dict]:
     
     # Get most recent file
     latest_object = sorted(objects, key=lambda x: x.last_modified, reverse=True)[0]
+    
+    context.log.info(f"Found {len(objects)} file(s), using: {latest_object.object_name}")
     
     # Download from MinIO
     response = minio_client.get_object(MINIO_BUCKET, latest_object.object_name)
@@ -292,13 +297,15 @@ def clean_weather_data(context: AssetExecutionContext) -> Output[pd.DataFrame]:
     now = datetime.now()
     partition_path = f"bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}/{now.hour:02d}"
     
-    objects = list(minio_client.list_objects(MINIO_BUCKET, prefix=partition_path))
+    objects = list(minio_client.list_objects(MINIO_BUCKET, prefix=partition_path, recursive=True))
+    objects = [obj for obj in objects if not obj.object_name.endswith('/')]
     
     if not objects:
         context.log.warning("No data to transform")
         return Output(pd.DataFrame())
     
     latest_object = sorted(objects, key=lambda x: x.last_modified, reverse=True)[0]
+    context.log.info(f"Reading from: {latest_object.object_name}")
     response = minio_client.get_object(MINIO_BUCKET, latest_object.object_name)
     df = pd.read_parquet(BytesIO(response.read()))
     response.close()
@@ -365,7 +372,8 @@ def weather_to_postgres(context: AssetExecutionContext) -> Output[int]:
     now = datetime.now()
     silver_path = f"silver/weather/{now.year}/{now.month:02d}/{now.day:02d}"
     
-    objects = list(minio_client.list_objects(MINIO_BUCKET, prefix=silver_path))
+    objects = list(minio_client.list_objects(MINIO_BUCKET, prefix=silver_path, recursive=True))
+    objects = [obj for obj in objects if not obj.object_name.endswith('/')]
     
     if not objects:
         context.log.warning("No clean data to load")
@@ -380,14 +388,36 @@ def weather_to_postgres(context: AssetExecutionContext) -> Output[int]:
     # Load to PostgreSQL
     engine = get_postgres_engine()
     
-    # Create schema if not exists
+    # Schema already exists from init script, but check anyway
     with engine.connect() as conn:
-        conn.execute("CREATE SCHEMA IF NOT EXISTS weather")
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS weather"))
         conn.commit()
+    
+    # First, ensure stations exist (upsert into stations table)
+    df_stations = df[['station_name', 'latitude', 'longitude']].drop_duplicates()
+    
+    # Upsert stations (INSERT ... ON CONFLICT DO NOTHING)
+    for _, row in df_stations.iterrows():
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO weather.stations (station_name, latitude, longitude)
+                VALUES (:name, :lat, :lon)
+                ON CONFLICT (station_name) DO UPDATE
+                SET latitude = EXCLUDED.latitude,
+                    longitude = EXCLUDED.longitude,
+                    updated_at = NOW()
+            """), {"name": row['station_name'], "lat": row['latitude'], "lon": row['longitude']})
+            conn.commit()
+    
+    context.log.info(f"Ensured {len(df_stations)} stations exist in weather.stations")
+    
+    # Drop latitude/longitude columns - they're now in stations table
+    # Keep only observations data
+    df_observations = df.drop(columns=['latitude', 'longitude'], errors='ignore')
     
     # Write data (append mode)
     table_name = "observations"
-    df.to_sql(
+    df_observations.to_sql(
         table_name,
         engine,
         schema="weather",
@@ -396,17 +426,17 @@ def weather_to_postgres(context: AssetExecutionContext) -> Output[int]:
         method="multi"
     )
     
-    context.log.info(f"Loaded {len(df)} records into weather.observations")
+    context.log.info(f"Loaded {len(df_observations)} records into weather.observations")
     
     # Get total count
     with engine.connect() as conn:
-        result = conn.execute("SELECT COUNT(*) FROM weather.observations")
+        result = conn.execute(text("SELECT COUNT(*) FROM weather.observations"))
         total_count = result.scalar()
     
     return Output(
-        len(df),
+        len(df_observations),
         metadata={
-            "records_loaded": len(df),
+            "records_loaded": len(df_observations),
             "total_records_in_table": total_count,
             "table": "weather.observations",
         }
