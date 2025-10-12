@@ -6,7 +6,19 @@ Complete lokale data platform met API gateway, SQL engine, visualization, data l
 
 **Open [dashboard.html](dashboard.html) in je browser voor een visueel overzicht van alle componenten!**
 
-## 📋 Quick Links
+## � Documentation
+
+- 🆕 **[Data Engineer Onboarding](docs/DATA_ENGINEER_ONBOARDING.md)** - Complete guide voor nieuwe engineers
+  - CSV laden vanuit cloud storage (GCS, S3, MinIO)
+  - Streaming data setup (Kafka, WebSocket)
+  - Externe API integratie met voorbeelden
+  - Best practices en troubleshooting
+- 🚀 **[Quick Reference](docs/QUICK_REFERENCE.md)** - Handige commando's en workflows
+- 🌤️ **[Weather API Docs](docs/WEATHER_API.md)** - Complete API reference
+- 📊 **[Superset Dashboards Guide](docs/SUPERSET_DASHBOARDS.md)** - Dashboard setup
+- 🔧 **[Dagster gRPC Fix](docs/DAGSTER_GRPC_FIX.md)** - Troubleshooting connection issues
+
+## �📋 Quick Links
 
 - **Weather API**: http://localhost:8000/api/v1/weather (see [docs/WEATHER_API.md](docs/WEATHER_API.md)) 🌤️
 - **Amundsen**: http://localhost:5005 (Data Catalog & Glossary) ⭐
