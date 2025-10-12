@@ -71,6 +71,34 @@ services:
           memory: 1g
     profiles: [ "standard" ]
 
+  dagster:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    image: dp_dagster:latest
+    container_name: dp_dagster
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      DAGSTER_HOME: /opt/dagster/app/dagster_home
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio12345
+      MINIO_BUCKET: lake
+      POSTGRES_CONN: "postgresql://superset:superset@postgres:5432/superset"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./orchestration:/opt/dagster/app
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    profiles: [ "standard" ]
+
   trino:
     image: trinodb/trino:latest
     container_name: dp_trino

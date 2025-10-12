@@ -1,0 +1,34 @@
+# Dagster instance configuration
+# This file configures the Dagster instance settings
+
+# Storage backend for run history and event logs
+storage:
+  postgres:
+    postgres_url:
+      env: POSTGRES_CONN
+
+# Run launcher - how runs are executed
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
+
+# Run coordinator - how runs are queued and dequeued
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: DefaultRunCoordinator
+
+# Compute log manager - where compute logs are stored
+compute_logs:
+  module: dagster.core.storage.local_compute_log_manager
+  class: LocalComputeLogManager
+  config:
+    base_dir: /opt/dagster/app/dagster_home/logs
+
+# Schedule and sensor settings
+schedule_executor:
+  module: dagster.core.scheduler
+  class: DefaultScheduleExecutor
+
+# Telemetry - disable for privacy
+telemetry:
+  enabled: false
