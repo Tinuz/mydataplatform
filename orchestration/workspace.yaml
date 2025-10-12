@@ -1,0 +1,8 @@
+# Workspace configuration for Dagster
+# Defines code locations (where your pipeline code lives)
+
+load_from:
+  - python_module:
+      module_name: weather_pipeline
+      working_directory: /opt/dagster/app
+      attribute: defs
