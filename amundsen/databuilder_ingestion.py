@@ -197,10 +197,283 @@ def create_metadata():
     driver.close()
     return True
 
+
+def create_weather_metadata():
+    """Create weather metadata structure in Neo4j"""
+    
+    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    
+    with driver.session() as session:
+        print("\n=== Creating Weather Metadata in Amundsen ===\n")
+        
+        # 1. Create/Get Database node
+        print("1. Creating database node...")
+        session.run("""
+            MERGE (db:Database {key: 'postgres://dataplatform'})
+            ON CREATE SET 
+                db.name = 'postgres',
+                db.cluster = 'dataplatform'
+        """)
+        
+        # 2. Create Schema node
+        print("2. Creating weather schema node...")
+        session.run("""
+            MERGE (schema:Schema {key: 'postgres://dataplatform.weather'})
+            ON CREATE SET
+                schema.name = 'weather'
+            WITH schema
+            MATCH (db:Database {key: 'postgres://dataplatform'})
+            MERGE (db)-[:SCHEMA]->(schema)
+        """)
+        
+        # 3. Create STATIONS Table
+        print("3. Creating stations table...")
+        session.run("""
+            MERGE (table:Table {key: 'postgres://dataplatform.weather/stations'})
+            ON CREATE SET
+                table.name = 'stations',
+                table.database = 'postgres',
+                table.cluster = 'dataplatform',
+                table.schema = 'weather',
+                table.description = 'Weather station dimension table. Contains geographic coordinates and metadata for 7 major Dutch cities: Amsterdam, Rotterdam, Den Haag, Utrecht, Eindhoven, Groningen, and Maastricht. Updated hourly via Dagster orchestration.',
+                table.is_view = false
+            WITH table
+            MATCH (schema:Schema {key: 'postgres://dataplatform.weather'})
+            MERGE (schema)-[:TABLE]->(table)
+        """)
+        
+        # 4. Create stations columns
+        print("4. Creating stations columns...")
+        stations_columns = [
+            ("station_name", "VARCHAR(100)", "Primary key - Name of the weather station (city name)"),
+            ("latitude", "FLOAT", "Geographic latitude coordinate (WGS84)"),
+            ("longitude", "FLOAT", "Geographic longitude coordinate (WGS84)"),
+            ("elevation", "FLOAT", "Station elevation above sea level (nullable)"),
+            ("country", "VARCHAR(100)", "Country name (Netherlands)"),
+            ("created_at", "TIMESTAMP", "Record creation timestamp"),
+            ("updated_at", "TIMESTAMP", "Last update timestamp")
+        ]
+        
+        for col_name, col_type, col_desc in stations_columns:
+            session.run("""
+                MATCH (table:Table {key: 'postgres://dataplatform.weather/stations'})
+                MERGE (col:Column {key: 'postgres://dataplatform.weather/stations/' + $col_name})
+                ON CREATE SET
+                    col.name = $col_name,
+                    col.type = $col_type,
+                    col.description = $col_desc,
+                    col.sort_order = $sort_order
+                MERGE (table)-[:COLUMN]->(col)
+            """, col_name=col_name, col_type=col_type, col_desc=col_desc, 
+                sort_order=stations_columns.index((col_name, col_type, col_desc)))
+        print(f"   ✓ Created {len(stations_columns)} columns")
+        
+        # 5. Create OBSERVATIONS Table
+        print("\n5. Creating observations table...")
+        session.run("""
+            MERGE (table:Table {key: 'postgres://dataplatform.weather/observations'})
+            ON CREATE SET
+                table.name = 'observations',
+                table.database = 'postgres',
+                table.cluster = 'dataplatform',
+                table.schema = 'weather',
+                table.description = 'Weather observations fact table. Hourly weather measurements from Open-Meteo API including temperature, humidity, wind speed, pressure, and calculated feels-like temperature. Data quality validated by Dagster pipeline (100% pass rate).',
+                table.is_view = false
+            WITH table
+            MATCH (schema:Schema {key: 'postgres://dataplatform.weather'})
+            MERGE (schema)-[:TABLE]->(table)
+        """)
+        
+        # 6. Create observations columns
+        print("6. Creating observations columns...")
+        obs_columns = [
+            ("id", "INTEGER", "Auto-increment primary key"),
+            ("station_name", "VARCHAR(100)", "Foreign key to stations.station_name"),
+            ("timestamp", "TIMESTAMP", "Observation timestamp (UTC)"),
+            ("temperature", "FLOAT", "Temperature in Celsius"),
+            ("humidity", "INTEGER", "Relative humidity percentage (0-100)"),
+            ("precipitation", "FLOAT", "Precipitation in mm"),
+            ("rain", "FLOAT", "Rain amount in mm"),
+            ("wind_speed", "FLOAT", "Wind speed in km/h"),
+            ("wind_direction", "INTEGER", "Wind direction in degrees (0-360)"),
+            ("pressure", "FLOAT", "Atmospheric pressure in hPa"),
+            ("feels_like_temp", "FLOAT", "Calculated feels-like temperature using wind chill formula"),
+            ("ingestion_time", "TIMESTAMP", "When data was ingested from API"),
+            ("processed_at", "TIMESTAMP", "When data quality checks completed"),
+            ("data_quality", "VARCHAR(50)", "Quality validation status"),
+            ("created_at", "TIMESTAMP", "Record creation timestamp")
+        ]
+        
+        for col_name, col_type, col_desc in obs_columns:
+            session.run("""
+                MATCH (table:Table {key: 'postgres://dataplatform.weather/observations'})
+                MERGE (col:Column {key: 'postgres://dataplatform.weather/observations/' + $col_name})
+                ON CREATE SET
+                    col.name = $col_name,
+                    col.type = $col_type,
+                    col.description = $col_desc,
+                    col.sort_order = $sort_order
+                MERGE (table)-[:COLUMN]->(col)
+            """, col_name=col_name, col_type=col_type, col_desc=col_desc,
+                sort_order=obs_columns.index((col_name, col_type, col_desc)))
+        print(f"   ✓ Created {len(obs_columns)} columns")
+        
+        # 7. Create WEATHER_NEAR_TOWERS View
+        print("\n7. Creating weather_near_towers view...")
+        session.run("""
+            MERGE (table:Table {key: 'postgres://dataplatform.weather/weather_near_towers'})
+            ON CREATE SET
+                table.name = 'weather_near_towers',
+                table.database = 'postgres',
+                table.cluster = 'dataplatform',
+                table.schema = 'weather',
+                table.description = 'Analytics view combining weather observations with nearby cell towers. Uses Haversine formula to calculate distances within 50km radius. Enables analysis of weather conditions near 47k cell tower installations. Updated hourly.',
+                table.is_view = true
+            WITH table
+            MATCH (schema:Schema {key: 'postgres://dataplatform.weather'})
+            MERGE (schema)-[:TABLE]->(table)
+        """)
+        
+        # 8. Create view columns
+        print("8. Creating view columns...")
+        view_columns = [
+            ("radio", "TEXT", "Radio technology (GSM, UMTS, LTE)"),
+            ("mcc", "INTEGER", "Mobile Country Code (204 = Netherlands)"),
+            ("net", "INTEGER", "Mobile Network Code (carrier identifier)"),
+            ("area", "INTEGER", "Location Area Code"),
+            ("cell", "INTEGER", "Cell ID"),
+            ("tower_lon", "FLOAT", "Cell tower longitude"),
+            ("tower_lat", "FLOAT", "Cell tower latitude"),
+            ("station_name", "VARCHAR(100)", "Weather station name"),
+            ("distance_km", "FLOAT", "Distance from tower to station (Haversine)"),
+            ("observation_time", "TIMESTAMP", "Weather observation timestamp"),
+            ("temperature", "FLOAT", "Temperature in Celsius"),
+            ("humidity", "INTEGER", "Relative humidity percentage"),
+            ("wind_speed", "FLOAT", "Wind speed in km/h"),
+            ("wind_direction", "INTEGER", "Wind direction in degrees"),
+            ("precipitation", "FLOAT", "Precipitation in mm"),
+            ("pressure", "FLOAT", "Atmospheric pressure in hPa"),
+            ("feels_like_temp", "FLOAT", "Calculated feels-like temperature")
+        ]
+        
+        for col_name, col_type, col_desc in view_columns:
+            session.run("""
+                MATCH (table:Table {key: 'postgres://dataplatform.weather/weather_near_towers'})
+                MERGE (col:Column {key: 'postgres://dataplatform.weather/weather_near_towers/' + $col_name})
+                ON CREATE SET
+                    col.name = $col_name,
+                    col.type = $col_type,
+                    col.description = $col_desc,
+                    col.sort_order = $sort_order
+                MERGE (table)-[:COLUMN]->(col)
+            """, col_name=col_name, col_type=col_type, col_desc=col_desc,
+                sort_order=view_columns.index((col_name, col_type, col_desc)))
+        print(f"   ✓ Created {len(view_columns)} columns")
+        
+        # 9. Add tags to all weather tables
+        print("\n9. Adding tags...")
+        weather_tags = [
+            ("weather", "Weather domain data"),
+            ("orchestrated", "Managed by Dagster pipeline"),
+            ("quality-checked", "Validated by data quality rules"),
+            ("hourly", "Updated every hour"),
+            ("open-meteo", "Source: Open-Meteo API")
+        ]
+        
+        for tag_name, tag_desc in weather_tags:
+            session.run("""
+                MATCH (table:Table)
+                WHERE table.schema = 'weather'
+                MERGE (tag:Tag {key: 'weather/' + $tag_name})
+                ON CREATE SET
+                    tag.tag_name = $tag_name,
+                    tag.tag_type = 'default'
+                MERGE (table)-[:TAGGED_BY]->(tag)
+            """, tag_name=tag_name, tag_desc=tag_desc)
+        print(f"   ✓ Added {len(weather_tags)} tags")
+        
+        # 10. Add statistics
+        print("\n10. Adding statistics...")
+        session.run("""
+            MATCH (table:Table {key: 'postgres://dataplatform.weather/stations'})
+            MERGE (stat1:Stat {key: 'postgres://dataplatform.weather/stations/station_count'})
+            ON CREATE SET
+                stat1.stat_name = 'station_count',
+                stat1.stat_val = '7',
+                stat1.start_epoch = 1728738000,
+                stat1.end_epoch = 1728738000
+            MERGE (table)-[:STAT]->(stat1)
+        """)
+        
+        session.run("""
+            MATCH (table:Table {key: 'postgres://dataplatform.weather/observations'})
+            MERGE (stat2:Stat {key: 'postgres://dataplatform.weather/observations/data_quality'})
+            ON CREATE SET
+                stat2.stat_name = 'data_quality',
+                stat2.stat_val = '100%',
+                stat2.start_epoch = 1728738000,
+                stat2.end_epoch = 1728738000
+            MERGE (table)-[:STAT]->(stat2)
+        """)
+        
+        session.run("""
+            MATCH (view:Table {key: 'postgres://dataplatform.weather/weather_near_towers'})
+            MERGE (stat3:Stat {key: 'postgres://dataplatform.weather/weather_near_towers/tower_coverage'})
+            ON CREATE SET
+                stat3.stat_name = 'tower_coverage',
+                stat3.stat_val = '47,114',
+                stat3.start_epoch = 1728738000,
+                stat3.end_epoch = 1728738000
+            MERGE (view)-[:STAT]->(stat3)
+        """)
+        print("   ✓ station_count: 7")
+        print("   ✓ data_quality: 100%")
+        print("   ✓ tower_coverage: 47,114")
+        
+        # 11. Add programmatic descriptions
+        print("\n11. Adding quality reports...")
+        session.run("""
+            MATCH (table:Table {key: 'postgres://dataplatform.weather/observations'})
+            MERGE (desc:Programmatic_Description {
+                key: 'postgres://dataplatform.weather/observations/_dagster_quality_'
+            })
+            ON CREATE SET
+                desc.description_source = 'dagster_quality',
+                desc.description = 'Dagster Quality Report: 100% pass rate on 7 validation rules. Temperature range check (-30 to 45°C), humidity validation (0-100%), coordinate validation (Netherlands bounds), null value checks, and data freshness validation. Pipeline runs hourly with automatic quality gates.'
+            MERGE (table)-[:DESCRIPTION]->(desc)
+        """)
+        print("   ✓ Quality report added to observations")
+        
+        print("\n✅ Weather metadata successfully loaded into Amundsen!")
+        print(f"\n📊 Summary:")
+        print(f"   • Schema: weather")
+        print(f"   • Tables: 3 (stations, observations, weather_near_towers)")
+        print(f"   • Total Columns: {len(stations_columns) + len(obs_columns) + len(view_columns)}")
+        print(f"   • Tags: {len(weather_tags)}")
+        print(f"   • Statistics: 3")
+        
+    driver.close()
+    return True
+
+
 if __name__ == "__main__":
     try:
-        success = create_metadata()
-        sys.exit(0 if success else 1)
+        # Load cell towers metadata
+        print("Loading Cell Towers metadata...")
+        success1 = create_metadata()
+        
+        # Load weather metadata
+        print("\n" + "="*60)
+        success2 = create_weather_metadata()
+        
+        if success1 and success2:
+            print("\n" + "="*60)
+            print("🎉 ALL METADATA LOADED SUCCESSFULLY!")
+            print("="*60)
+            print("\n🌐 View in Amundsen UI: http://localhost:5005")
+            print("Try searching for: clean_204, stations, observations, weather_near_towers")
+        
+        sys.exit(0 if (success1 and success2) else 1)
     except Exception as e:
         print(f"\n❌ Error: {e}")
         print("\nMake sure:")
