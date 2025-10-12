@@ -2,6 +2,10 @@
 
 Complete lokale data platform met API gateway, SQL engine, visualization, data lake en governance.
 
+## 🎯 Dashboard
+
+**Open [dashboard.html](dashboard.html) in je browser voor een visueel overzicht van alle componenten!**
+
 ## 📋 Quick Links
 
 - **Weather API**: http://localhost:8000/api/v1/weather (see [docs/WEATHER_API.md](docs/WEATHER_API.md)) 🌤️
@@ -12,6 +16,7 @@ Complete lokale data platform met API gateway, SQL engine, visualization, data l
 - **Trino**: http://localhost:8080
 - **Konga**: http://localhost:1337
 - **API Docs**: http://localhost:8000/docs
+- **Dagster**: http://localhost:3000
 
 ## 🏗️ Architectuur
 
