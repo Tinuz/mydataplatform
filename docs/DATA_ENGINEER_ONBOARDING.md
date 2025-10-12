@@ -45,22 +45,83 @@ Open `dashboard.html` in je browser voor een overzicht van alle services, of geb
 | **Weather API** | http://localhost:8000/api/v1/weather | API Key: `demo-weather-api-key-2025` |
 | **PostgreSQL** | localhost:5432 | superset/superset |
 
-### 1.3 Bekende Locaties
+### 1.3 Project Structuur
 
-- **Pipeline code:** `orchestration/weather_pipeline/`
-- **SQL scripts:** `etl/sql/`
-- **API code:** `api/server.js`
-- **Docs:** `docs/`
+Het platform gebruikt een **modulaire aanpak**: elke use case krijgt een eigen folder.
+
+**Bestaande voorbeelden:**
+- `orchestration/weather_pipeline/` - Weather API ingestion (voorbeeld project)
+- `etl/sql/` - Gedeelde SQL scripts
+- `api/` - API services
+- `docs/` - Platform documentatie
+
+**Voor nieuwe projecten maak je een eigen folder aan:**
+```
+orchestration/
+├── weather_pipeline/          # Voorbeeld: Weather data
+├── customer_analytics/         # Jouw project: Customer data
+├── sales_reporting/           # Voorbeeld: Sales API
+└── sensor_streaming/          # Voorbeeld: IoT sensors
+```
+
+**Elke project folder bevat:**
+```
+customer_analytics/
+├── __init__.py               # Dagster definitions
+├── assets/                   # Data assets (ingestion + transformatie)
+│   ├── __init__.py
+│   ├── gcs_ingestion.py     # Cloud storage assets
+│   └── transformations.py   # Data cleaning
+├── jobs/                     # Dagster jobs (optioneel)
+├── schedules.py             # Scheduled runs
+├── sensors.py               # Event-driven triggers
+├── resources.py             # Database connections, API clients
+└── README.md                # Project documentatie
+```
 
 ---
 
 ## 2. CSV Bestanden Laden vanuit Cloud Storage
 
+### 2.0 Maak een Nieuw Project aan
+
+Voordat je begint met code schrijven, maak een **dedicated project folder** aan:
+
+```bash
+# Navigeer naar orchestration directory
+cd orchestration/
+
+# Maak een nieuwe project folder (gebruik lowercase met underscores)
+mkdir customer_analytics
+cd customer_analytics
+
+# Creëer de standaard structuur
+mkdir assets jobs
+touch __init__.py assets/__init__.py schedules.py resources.py README.md
+
+# Je hebt nu:
+# orchestration/customer_analytics/
+# ├── __init__.py
+# ├── assets/
+# │   └── __init__.py
+# ├── jobs/
+# ├── schedules.py
+# ├── resources.py
+# └── README.md
+```
+
+**Project naming conventions:**
+- ✅ `customer_analytics` - lowercase, underscores
+- ✅ `sales_reporting` - beschrijvende naam
+- ✅ `iot_sensors` - kort en duidelijk
+- ❌ `project1` - te generiek
+- ❌ `CustomerAnalytics` - geen CamelCase
+
 ### 2.1 Scenario: CSV in Google Cloud Storage
 
-**Stap 1: Maak een nieuw Dagster asset**
+**Stap 1: Maak een GCS ingestion asset**
 
-Creëer `orchestration/weather_pipeline/assets/gcs_ingestion.py`:
+Creëer `orchestration/customer_analytics/assets/gcs_ingestion.py`:
 
 ```python
 """
@@ -198,30 +259,94 @@ mkdir credentials
 # BELANGRIJK: Voeg credentials/ toe aan .gitignore!
 ```
 
-**Stap 4: Registreer het asset**
+**Stap 4: Registreer het project in Dagster**
 
-Update `orchestration/weather_pipeline/assets/__init__.py`:
+Update `orchestration/customer_analytics/__init__.py`:
 
 ```python
-from dagster import load_assets_from_modules
-from . import weather_assets, gcs_ingestion
+"""
+Customer Analytics Project
+Laadt en transformeert klantdata vanuit GCS
+"""
 
-# Load all assets
-weather_assets_list = load_assets_from_modules([weather_assets])
-gcs_assets_list = load_assets_from_modules([gcs_ingestion])
+from dagster import Definitions, load_assets_from_modules
+from . import assets
 
-all_assets = weather_assets_list + gcs_assets_list
+# Load alle assets uit de assets/ folder
+all_assets = load_assets_from_modules([assets])
+
+# Optioneel: Voeg schedules en sensors toe
+from .schedules import daily_customer_sync
+from .resources import postgres_resource
+
+defs = Definitions(
+    assets=all_assets,
+    schedules=[daily_customer_sync],
+    resources={"postgres": postgres_resource}
+)
 ```
 
-**Stap 5: Test de pipeline**
+**Update `orchestration/customer_analytics/assets/__init__.py`:**
+
+```python
+from .gcs_ingestion import gcs_customers_bronze, silver_customers
+
+__all__ = ["gcs_customers_bronze", "silver_customers"]
+```
+
+**Stap 5: Registreer het project in workspace.yaml**
+
+Update `orchestration/workspace.yaml`:
+
+```yaml
+load_from:
+  # Bestaande weather pipeline
+  - python_module:
+      module_name: weather_pipeline
+      working_directory: /opt/dagster/app
+      location_name: weather_pipeline_location
+  
+  # Nieuw: Customer Analytics project
+  - python_module:
+      module_name: customer_analytics
+      working_directory: /opt/dagster/app
+      location_name: customer_analytics_location
+```
+
+**Stap 6: Test de pipeline**
 
 ```bash
-# Herstart Dagster
+# Herstart Dagster om het nieuwe project te laden
 docker-compose restart dagster
 
+# Check logs om te zien of customer_analytics geladen is
+docker-compose logs dagster | grep "customer_analytics"
+
+# Je zou moeten zien:
+# "Loading repository customer_analytics_location..."
+# "Successfully loaded location customer_analytics_location"
+
 # Open Dagster UI: http://localhost:3000
+# Ga naar Deployment → Locations
+# Je ziet nu 2 locaties:
+#   - weather_pipeline_location
+#   - customer_analytics_location
+
+# Klik op customer_analytics_location
 # Ga naar Assets → gcs_customers_bronze
 # Klik "Materialize" om te testen
+```
+
+**Debugging tips:**
+```bash
+# Als het project niet laadt, check de syntax:
+docker-compose exec dagster python -m py_compile /opt/dagster/app/customer_analytics/__init__.py
+
+# Test imports:
+docker-compose exec dagster python -c "import customer_analytics; print(customer_analytics.defs)"
+
+# Herlaad workspace zonder restart:
+# Dagster UI → Deployment → Locations → Reload all
 ```
 
 ### 2.2 Alternatief: CSV in AWS S3
@@ -287,6 +412,24 @@ def minio_customers_bronze(context: AssetExecutionContext):
 
 ## 3. Streaming Data Setup
 
+### 3.0 Maak een Streaming Project aan
+
+```bash
+# Maak een dedicated streaming project
+cd orchestration/
+mkdir sensor_streaming
+cd sensor_streaming
+mkdir assets sensors jobs
+touch __init__.py assets/__init__.py sensors/__init__.py README.md
+
+# Project structuur:
+# sensor_streaming/
+# ├── __init__.py
+# ├── assets/
+# ├── sensors/        # Kafka sensors
+# └── README.md
+```
+
 ### 3.1 Scenario: Real-time Sensor Data Stream
 
 **Stap 1: Installeer Kafka dependencies**
@@ -340,7 +483,7 @@ docker-compose --profile streaming up -d
 
 **Stap 4: Maak een Kafka consumer sensor**
 
-Creëer `orchestration/weather_pipeline/sensors/kafka_sensor.py`:
+Creëer `orchestration/sensor_streaming/sensors/kafka_sensor.py`:
 
 ```python
 """
@@ -410,8 +553,13 @@ def kafka_sensor_stream(context: SensorEvaluationContext):
 
 **Stap 5: Maak een processing job**
 
+Creëer `orchestration/sensor_streaming/jobs/__init__.py`:
+
 ```python
 from dagster import job, op, In, Out
+import pandas as pd
+from sqlalchemy import create_engine
+import os
 
 @op(
     out=Out(pd.DataFrame),
@@ -445,7 +593,33 @@ def kafka_streaming_job():
     process_kafka_messages()
 ```
 
-**Stap 6: Test de stream**
+**Stap 6: Registreer het streaming project**
+
+Update `orchestration/sensor_streaming/__init__.py`:
+
+```python
+from dagster import Definitions, load_assets_from_modules
+from . import assets
+from .sensors.kafka_sensor import kafka_sensor_stream
+from .jobs import kafka_streaming_job
+
+defs = Definitions(
+    assets=load_assets_from_modules([assets]),
+    sensors=[kafka_sensor_stream],
+    jobs=[kafka_streaming_job]
+)
+```
+
+**Voeg toe aan workspace.yaml:**
+
+```yaml
+  - python_module:
+      module_name: sensor_streaming
+      working_directory: /opt/dagster/app
+      location_name: sensor_streaming_location
+```
+
+**Stap 7: Test de stream**
 
 ```python
 # Test producer - run dit in een Python shell
@@ -517,11 +691,28 @@ async def websocket_stream_reader(context):
 
 ## 4. Data Ophalen via Externe API
 
+### 4.0 Maak een API Project aan
+
+```bash
+# Maak een dedicated API ingestion project
+cd orchestration/
+mkdir ecommerce_api
+cd ecommerce_api
+mkdir assets schedules
+touch __init__.py assets/__init__.py schedules.py resources.py README.md
+
+# Documenteer je API in README.md:
+echo "# E-commerce API Integration" > README.md
+echo "Source: https://api.example.com/products" >> README.md
+echo "Auth: Bearer token" >> README.md
+echo "Schedule: Every 4 hours" >> README.md
+```
+
 ### 4.1 Scenario: REST API met Paginatie
 
 **Stap 1: Maak een API ingestion asset**
 
-Creëer `orchestration/weather_pipeline/assets/api_ingestion.py`:
+Creëer `orchestration/ecommerce_api/assets/api_ingestion.py`:
 
 ```python
 """
@@ -690,13 +881,15 @@ echo "EXTERNAL_API_KEY=your-secret-api-key" >> .env
 
 **Stap 3: Schedule de API sync**
 
+Creëer `orchestration/ecommerce_api/schedules.py`:
+
 ```python
-# In schedules.py
-from dagster import schedule, RunRequest
+from dagster import schedule, RunRequest, ScheduleDefinition
+from .jobs import api_ingestion_job
 
 @schedule(
     cron_schedule="0 */4 * * *",  # Elke 4 uur
-    job_name="api_ingestion_job",
+    job=api_ingestion_job,
     execution_timezone="Europe/Amsterdam"
 )
 def api_sync_schedule(context):
@@ -704,6 +897,52 @@ def api_sync_schedule(context):
     return RunRequest(
         run_key=f"api_sync_{context.scheduled_execution_time.timestamp()}"
     )
+```
+
+**Stap 4: Registreer het API project**
+
+Update `orchestration/ecommerce_api/__init__.py`:
+
+```python
+from dagster import Definitions, load_assets_from_modules, define_asset_job
+from . import assets
+from .schedules import api_sync_schedule
+
+all_assets = load_assets_from_modules([assets])
+
+# Definieer een job voor de schedule
+api_ingestion_job = define_asset_job(
+    name="api_ingestion_job",
+    selection="api_products_bronze+ silver_api_products"  # Deze assets
+)
+
+defs = Definitions(
+    assets=all_assets,
+    jobs=[api_ingestion_job],
+    schedules=[api_sync_schedule]
+)
+```
+
+**Voeg toe aan workspace.yaml:**
+
+```yaml
+  - python_module:
+      module_name: ecommerce_api
+      working_directory: /opt/dagster/app
+      location_name: ecommerce_api_location
+```
+
+**Stap 5: Test en enable schedule**
+
+```bash
+# Herstart Dagster
+docker-compose restart dagster
+
+# In Dagster UI:
+# 1. Ga naar ecommerce_api_location
+# 2. Klik op Schedules tab
+# 3. Enable "api_sync_schedule"
+# 4. Klik "Test Schedule" om te testen zonder te wachten
 ```
 
 ### 4.2 GraphQL API Voorbeeld
@@ -776,6 +1015,133 @@ def oauth_api_data(context: AssetExecutionContext):
 ---
 
 ## 5. Best Practices & Troubleshooting
+
+### 5.0 Project Organisatie Best Practices
+
+**✅ DO's:**
+
+1. **Eén project per use case / data domain**
+   ```
+   orchestration/
+   ├── customer_analytics/    # Alles over klanten
+   ├── sales_reporting/       # Alles over sales
+   └── inventory_tracking/    # Alles over voorraad
+   ```
+
+2. **Gebruik beschrijvende namen**
+   - ✅ `fraud_detection`, `marketing_campaigns`, `iot_sensors`
+   - ❌ `project1`, `test`, `my_pipeline`
+
+3. **Documenteer elk project**
+   ```markdown
+   # customer_analytics/README.md
+   
+   ## Data Sources
+   - GCS: gs://company-data/customers/*.csv
+   - API: https://crm.company.com/api/customers
+   
+   ## Schedule
+   - Daily at 02:00 UTC
+   
+   ## Outputs
+   - bronze.customers (raw)
+   - silver.customers (cleaned)
+   - gold.customer_segments (analytics-ready)
+   
+   ## Dependencies
+   - google-cloud-storage
+   - pandas
+   
+   ## Owner
+   - Team: Data Engineering
+   - Contact: data-eng@company.com
+   ```
+
+4. **Isoleer dependencies per project**
+   ```txt
+   # customer_analytics/requirements.txt
+   google-cloud-storage==2.10.0
+   pandas==2.0.3
+   
+   # ecommerce_api/requirements.txt
+   requests==2.31.0
+   requests-oauthlib==1.3.1
+   ```
+
+5. **Gebruik resource definitie voor herbruikbaarheid**
+   ```python
+   # customer_analytics/resources.py
+   from dagster import resource
+   from sqlalchemy import create_engine
+   
+   @resource
+   def postgres_resource(context):
+       return create_engine(context.resource_config["conn_string"])
+   
+   # Dan in __init__.py:
+   defs = Definitions(
+       assets=all_assets,
+       resources={
+           "postgres": postgres_resource.configured(
+               {"conn_string": os.getenv("POSTGRES_CONN")}
+           )
+       }
+   )
+   ```
+
+**❌ DON'T's:**
+
+1. ❌ **Alles in één grote folder stoppen**
+   ```
+   # Slecht:
+   orchestration/weather_pipeline/
+   ├── customers.py
+   ├── sales.py
+   ├── inventory.py
+   ├── weather.py
+   └── fraud_detection.py
+   ```
+
+2. ❌ **Hard-coded credentials in code**
+   ```python
+   # NOOIT DOEN:
+   api_key = "sk-1234567890abcdef"
+   
+   # WEL DOEN:
+   api_key = os.getenv("EXTERNAL_API_KEY")
+   ```
+
+3. ❌ **Assets van verschillende domains mixen**
+   ```python
+   # Slecht: customer data en sales data in 1 project
+   @asset
+   def customers(): ...
+   
+   @asset  
+   def sales_orders(): ...
+   ```
+
+**Project Dependencies:**
+
+Als project A data nodig heeft van project B:
+
+```python
+# ecommerce_api/assets/enrichment.py
+from dagster import asset, AssetIn
+
+@asset(
+    ins={
+        "customers": AssetIn(
+            key_prefix=["customer_analytics"]  # Van ander project
+        )
+    }
+)
+def enriched_orders(customers):
+    """Enrich orders met customer data"""
+    # customers komt van customer_analytics project
+    # orders komen van dit project
+    ...
+```
 
 ### 5.1 Data Quality Checks
 
