@@ -313,12 +313,20 @@ def weather_quality_check(context: AssetExecutionContext) -> Output[dict]:
         
         # Emit lineage complete event with inputs from bronze
         if MARQUEZ_AVAILABLE and run_id:
-            emit_lineage_complete("weather_quality_check", run_id, outputs=[{
-                "namespace": "minio",
-                "name": f"bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}",
-                "source": "MinIO Bronze Layer",
-                "uri": f"s3://lake/bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}"
-            }])
+            emit_lineage_complete("weather_quality_check", run_id, 
+                inputs=[{
+                    "namespace": "minio",
+                    "name": f"bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}",
+                    "source": "MinIO Bronze Layer",
+                    "uri": f"s3://lake/bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}"
+                }],
+                outputs=[{
+                    "namespace": "minio",
+                    "name": f"bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}",
+                    "source": "MinIO Bronze Layer (validated)",
+                    "uri": f"s3://lake/bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}"
+                }]
+            )
         
         return Output(
             quality_results,
@@ -419,12 +427,20 @@ def clean_weather_data(context: AssetExecutionContext) -> Output[pd.DataFrame]:
         
         # Emit lineage complete event
         if MARQUEZ_AVAILABLE and run_id:
-            emit_lineage_complete("clean_weather_data", run_id, outputs=[{
-                "namespace": "minio",
-                "name": f"silver/weather/{now.year}/{now.month:02d}/{now.day:02d}",
-                "source": "MinIO Silver Layer",
-                "uri": f"s3://lake/silver/weather/{now.year}/{now.month:02d}/{now.day:02d}"
-            }])
+            emit_lineage_complete("clean_weather_data", run_id,
+                inputs=[{
+                    "namespace": "minio",
+                    "name": f"bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}",
+                    "source": "MinIO Bronze Layer",
+                    "uri": f"s3://lake/bronze/weather/{now.year}/{now.month:02d}/{now.day:02d}"
+                }],
+                outputs=[{
+                    "namespace": "minio",
+                    "name": f"silver/weather/{now.year}/{now.month:02d}/{now.day:02d}",
+                    "source": "MinIO Silver Layer",
+                    "uri": f"s3://lake/silver/weather/{now.year}/{now.month:02d}/{now.day:02d}"
+                }]
+            )
         
         return Output(
             df_clean,
@@ -555,12 +571,20 @@ def weather_to_postgres(context: AssetExecutionContext) -> Output[int]:
         
         # Emit lineage complete event
         if MARQUEZ_AVAILABLE and run_id:
-            emit_lineage_complete("weather_to_postgres", run_id, outputs=[{
-                "namespace": "postgres",
-                "name": "weather.observations",
-                "source": "PostgreSQL",
-                "uri": f"postgresql://postgres:5432/superset/weather/observations"
-            }])
+            emit_lineage_complete("weather_to_postgres", run_id,
+                inputs=[{
+                    "namespace": "minio",
+                    "name": f"silver/weather/{now.year}/{now.month:02d}/{now.day:02d}",
+                    "source": "MinIO Silver Layer",
+                    "uri": f"s3://lake/silver/weather/{now.year}/{now.month:02d}/{now.day:02d}"
+                }],
+                outputs=[{
+                    "namespace": "postgres",
+                    "name": "weather.observations",
+                    "source": "PostgreSQL",
+                    "uri": f"postgresql://postgres:5432/superset/weather/observations"
+                }]
+            )
         
         return Output(
             len(df_observations),

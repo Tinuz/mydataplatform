@@ -58,11 +58,29 @@ def emit_lineage_start(job_name: str, run_id: Optional[str] = None) -> str:
         return run_id
 
 
-def emit_lineage_complete(job_name: str, run_id: str, outputs: List[Dict] = None):
+def emit_lineage_complete(job_name: str, run_id: str, inputs: List[Dict] = None, outputs: List[Dict] = None):
     """
     Emit COMPLETE event to Marquez via HTTP
     """
     try:
+        # Build input datasets
+        input_datasets = []
+        if inputs:
+            for input_ds in inputs:
+                input_datasets.append({
+                    "namespace": input_ds.get("namespace", "unknown"),
+                    "name": input_ds.get("name", "unknown"),
+                    "facets": {
+                        "dataSource": {
+                            "_producer": "dagster-weather-pipeline",
+                            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DataSourceDatasetFacet.json",
+                            "name": input_ds.get("source", "Unknown"),
+                            "uri": input_ds.get("uri", "")
+                        }
+                    }
+                })
+        
+        # Build output datasets
         output_datasets = []
         if outputs:
             for output in outputs:
@@ -90,7 +108,7 @@ def emit_lineage_complete(job_name: str, run_id: str, outputs: List[Dict] = None
                 "name": job_name,
                 "facets": {}
             },
-            "inputs": [],
+            "inputs": input_datasets,
             "outputs": output_datasets,
             "producer": "dagster-weather-pipeline"
         }
@@ -102,7 +120,7 @@ def emit_lineage_complete(job_name: str, run_id: str, outputs: List[Dict] = None
         )
         
         if response.status_code in [200, 201]:
-            print(f"✅ Marquez: COMPLETE event for {job_name} ({len(output_datasets)} outputs)")
+            print(f"✅ Marquez: COMPLETE event for {job_name} ({len(input_datasets)} inputs, {len(output_datasets)} outputs)")
         else:
             print(f"⚠️  Marquez COMPLETE failed: {response.status_code}")
             
