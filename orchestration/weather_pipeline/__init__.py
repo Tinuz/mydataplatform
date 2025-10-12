@@ -7,6 +7,7 @@ from dagster import Definitions, load_assets_from_modules
 
 from . import assets
 from .schedules import weather_hourly_schedule
+from .sensors import amundsen_sync_sensor
 
 # Load all assets from the assets module
 all_assets = load_assets_from_modules([assets])
@@ -15,4 +16,5 @@ all_assets = load_assets_from_modules([assets])
 defs = Definitions(
     assets=all_assets,
     schedules=[weather_hourly_schedule],
+    sensors=[amundsen_sync_sensor],
 )
