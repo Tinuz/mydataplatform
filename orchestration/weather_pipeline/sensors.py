@@ -18,11 +18,14 @@ except ImportError:
 @sensor(
     name="amundsen_metadata_sync", 
     minimum_interval_seconds=300,  # Run every 5 minutes
-    default_status=DefaultSensorStatus.RUNNING
+    default_status=DefaultSensorStatus.STOPPED  # Disabled by default - enable manually in UI
 )
 def amundsen_sync_sensor(context):
     """
     Sensor that automatically syncs Dagster asset metadata to Amundsen catalog
+    
+    ⚠️  IMPORTANT: This sensor is DISABLED by default
+    Enable it manually in Dagster UI when Amundsen is running
     
     Triggers:
     - Every 5 minutes (configurable)
@@ -35,7 +38,8 @@ def amundsen_sync_sensor(context):
     - Links to Marquez lineage graphs
     
     Usage:
-    - Enables this sensor in Dagster UI or via CLI
+    - Start Amundsen: docker-compose --profile amundsen up -d
+    - Enable this sensor in Dagster UI (Automation tab)
     - Metadata will automatically appear in Amundsen
     - Data stewards can search and discover datasets
     """
@@ -57,6 +61,7 @@ def amundsen_sync_sensor(context):
         
     except Exception as e:
         context.log.error(f"❌ Amundsen sync failed: {str(e)}")
+        # Don't re-raise - sensor should continue running even if Amundsen is down
     
     # Sensor doesn't request any runs - it's a maintenance task
     return

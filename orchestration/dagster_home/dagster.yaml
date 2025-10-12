@@ -24,6 +24,12 @@ compute_logs:
   config:
     base_dir: /opt/dagster/app/dagster_home/logs
 
+# Code server settings - increase timeouts
+code_servers:
+  local_startup_timeout: 180  # 3 minutes for initial startup
+  reload_timeout: 180  # 3 minutes for code reload
+  wait_for_local_processes_on_shutdown: true
+
 # Disable telemetry
 telemetry:
   enabled: false

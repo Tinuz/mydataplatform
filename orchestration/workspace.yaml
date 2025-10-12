@@ -6,3 +6,5 @@ load_from:
       module_name: weather_pipeline
       working_directory: /opt/dagster/app
       attribute: defs
+      # Increase timeout for slow imports/reloads
+      location_name: weather_pipeline_location
