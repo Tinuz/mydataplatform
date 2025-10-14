@@ -69,7 +69,7 @@ services:
       resources:
         limits:
           memory: 1g
-    profiles: [ "standard" ]
+    profiles: [ "standard", "streaming" ]  # Ook beschikbaar voor streaming
 
   dagster:
     build:
@@ -89,6 +89,10 @@ services:
       MINIO_SECRET_KEY: minio12345
       MINIO_BUCKET: lake
       POSTGRES_CONN: "postgresql://superset:superset@postgres:5432/superset"
+      # AWS region for Iceberg/S3 SDK (required even for MinIO)
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio12345
     ports:
       - "3000:3000"
     volumes:
@@ -96,46 +100,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
-    profiles: [ "standard" ]
-
-  trino:
-    image: trinodb/trino:latest
-    container_name: dp_trino
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_started
-    environment:
-      # Voor Apple Silicon optimalisatie
-      JAVA_TOOL_OPTIONS: "-XX:+UseContainerSupport"
-      # S3/MinIO credentials (voor Hive connector)
-      AWS_ACCESS_KEY_ID: "minio"
-      AWS_SECRET_ACCESS_KEY: "minio12345"
-      AWS_REGION: "us-east-1"
-      S3_ENDPOINT: "http://minio:9000"
-      S3_PATH_STYLE_ACCESS: "true"
-    ports:
-      - "8080:8080"  # Trino Web UI en API
-    volumes:
-      - ./trino/config.properties:/etc/trino/config.properties:ro
-      - ./trino/node.properties:/etc/trino/node.properties:ro
-      - ./trino/jvm.config:/etc/trino/jvm.config:ro
-      - ./trino/catalog:/etc/trino/catalog:ro
-      - trino_data:/data/trino
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/info || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 2g
-        reservations:
-          memory: 1g
+          memory: 2g  # Increased from 1g for crypto_stream with pyiceberg + kafka-python
     profiles: [ "standard" ]
 
   meltano:
@@ -450,13 +415,139 @@ services:
       - "5005:5000"  # Amundsen UI (changed to avoid conflict with Marquez)
     profiles: [ "amundsen" ]
 
+  # ==========================================
+  # STREAMING + LAKEHOUSE (Kafka + Iceberg)
+  # ==========================================
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: dp_kafka
+    platform: linux/arm64
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      # KRaft mode (no Zookeeper needed!)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    profiles: [ "streaming" ]
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:0.6.0
+    container_name: dp_iceberg_rest
+    ports:
+      - "8181:8181"
+    environment:
+      # Catalog configuration
+      CATALOG_WAREHOUSE: s3://lake/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_S3_ACCESS__KEY__ID: minio
+      CATALOG_S3_SECRET__ACCESS__KEY: minio12345
+      # AWS region (required by AWS SDK even for MinIO)
+      AWS_REGION: us-east-1
+      # Metadata storage (SQLite for simplicity)
+      CATALOG_JDBC_USER: admin
+      CATALOG_JDBC_PASSWORD: password
+    volumes:
+      - iceberg_catalog_data:/app
+    depends_on:
+      minio:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: [ "streaming" ]
+
+  # ========================================
+  # Investigations API
+  # ========================================
+  investigations-api:
+    build:
+      context: ./investigations-api
+      dockerfile: Dockerfile
+    image: dp_investigations_api:latest
+    container_name: dp_investigations_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      ENV: development
+      DATABASE_URL: postgresql+asyncpg://superset:superset@postgres:5432/superset
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio12345
+      MINIO_BUCKET: investigations
+      MINIO_USE_SSL: "false"
+      LOG_LEVEL: INFO
+    ports:
+      - "8090:8000"
+    volumes:
+      - ./investigations-api:/app
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles: [ "tiny", "standard" ]
+
+  # Investigation UI - Simple web interface for managing investigations
+  investigations-ui:
+    image: nginx:alpine
+    container_name: dp_investigations_ui
+    ports:
+      - "8080:80"
+    volumes:
+      - ./investigations-ui.html:/usr/share/nginx/html/index.html:ro
+      - ./investigation-detail.html:/usr/share/nginx/html/investigation-detail.html:ro
+      - ./dashboard.html:/usr/share/nginx/html/dashboard.html:ro
+    networks:
+      - default
+    profiles: [ "tiny", "standard" ]
+
 volumes:
   pgdata:
   minio_data:
   konga_data:
   konga_pgdata:
-  trino_data:
   amundsen_neo4j:
   amundsen_elasticsearch:
+  kafka_data:
+  iceberg_catalog_data:
 
 

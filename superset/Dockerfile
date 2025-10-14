@@ -3,13 +3,15 @@ FROM apache/superset:latest
 # Switch to root om packages te installeren
 USER root
 
-# Installeer pip in de venv en dan de database drivers
-# Python zoekt packages in /app/.venv/lib/python3.10/site-packages
-RUN python -m ensurepip --default-pip && \
-    pip install --target=/app/.venv/lib/python3.10/site-packages --no-cache-dir \
-        trino==0.328.0 \
-        sqlalchemy-trino==0.5.0 \
-        psycopg2-binary==2.9.9
+# Eerst pip installeren in de venv, dan de database drivers
+# We moeten expliciet --upgrade gebruiken om pip in de venv te krijgen
+RUN curl https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && \
+    /app/.venv/bin/python /tmp/get-pip.py && \
+    rm /tmp/get-pip.py && \
+    /app/.venv/bin/pip install --no-cache-dir \
+        psycopg2-binary==2.9.9 \
+        duckdb==1.1.3 \
+        duckdb-engine==0.13.2
 
 # Terug naar superset user voor security
 USER superset

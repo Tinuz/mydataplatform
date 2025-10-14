@@ -8,3 +8,16 @@ load_from:
       attribute: defs
       # Increase timeout for slow imports/reloads
       location_name: weather_pipeline_location
+  
+  - python_module:
+      module_name: crypto_stream
+      working_directory: /opt/dagster/app
+      attribute: defs
+      location_name: crypto_stream_location
+  
+  - python_module:
+      module_name: investigations
+      working_directory: /opt/dagster/app
+      attribute: defs
+      location_name: investigations_location
+

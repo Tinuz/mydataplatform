@@ -24,10 +24,10 @@ compute_logs:
   config:
     base_dir: /opt/dagster/app/dagster_home/logs
 
-# Code server settings - increase timeouts
+# Code server settings - increase timeouts for crypto_stream with heavy dependencies
 code_servers:
-  local_startup_timeout: 180  # 3 minutes for initial startup
-  reload_timeout: 180  # 3 minutes for code reload
+  local_startup_timeout: 300  # 5 minutes for initial startup (pyiceberg + kafka takes time)
+  reload_timeout: 300  # 5 minutes for code reload
   wait_for_local_processes_on_shutdown: true
 
 # Disable telemetry

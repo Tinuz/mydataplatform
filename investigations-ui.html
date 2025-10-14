@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investigation Management - Data Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .upload-zone {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f9fafb;
+            margin-bottom: 15px;
+        }
+
+        .upload-zone:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-zone.drag-over {
+            border-color: #667eea;
+            background: #e0e7ff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #9ca3af;
+        }
+
+        .upload-text {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .upload-text strong {
+            color: #667eea;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 15px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #333;
+            flex: 1;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-left: 10px;
+        }
+
+        .file-remove {
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 10px;
+        }
+
+        .investigation-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .investigation-item {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .investigation-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .investigation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .investigation-id {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .investigation-name {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .investigation-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-pending {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        .status-completed {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-closed {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .data-sources {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .data-source-item {
+            padding: 12px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .data-source-item:last-child {
+            border-bottom: none;
+        }
+
+        .source-name {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .source-status {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .source-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .source-processing {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .source-completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .source-failed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .source-skipped {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        /* Pipeline Status Styles */
+        .pipeline-status {
+            margin-top: 10px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .pipeline-steps {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .pipeline-step {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .pipeline-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background: #e5e7eb;
+            z-index: 0;
+        }
+
+        .pipeline-step.completed:not(:last-child)::after {
+            background: #10b981;
+        }
+
+        .step-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e5e7eb;
+            color: #9ca3af;
+            font-size: 16px;
+            font-weight: 600;
+            z-index: 1;
+            position: relative;
+            border: 3px solid white;
+        }
+
+        .pipeline-step.completed .step-icon {
+            background: #10b981;
+            color: white;
+        }
+
+        .pipeline-step.current .step-icon {
+            background: #3b82f6;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        .pipeline-step.failed .step-icon {
+            background: #ef4444;
+            color: white;
+        }
+
+        .step-label {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 6px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .pipeline-step.completed .step-label {
+            color: #065f46;
+        }
+
+        .pipeline-step.current .step-label {
+            color: #1e40af;
+        }
+
+        .pipeline-step.failed .step-label {
+            color: #991b1b;
+        }
+
+        .pipeline-details {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .pipeline-detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .pipeline-details {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .pipeline-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+
+        .pipeline-detail-row span:first-child {
+            font-weight: 500;
+        }
+
+        .pipeline-detail-row span:last-child {
+            font-family: monospace;
+        }        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 13px;
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Investigation Management</h1>
+            <p class="subtitle">Create, manage, and monitor criminal investigations with automated data processing</p>
+        </header>
+
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card">
+                <div class="stat-value" id="totalInvestigations">-</div>
+                <div class="stat-label">Total Investigations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeInvestigations">-</div>
+                <div class="stat-label">Active Cases</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="pendingFiles">-</div>
+                <div class="stat-label">Pending Files</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="processedFiles">-</div>
+                <div class="stat-label">Processed Today</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Create Investigation Form -->
+            <div class="card">
+                <h2>Create New Investigation</h2>
+                <div id="createAlert"></div>
+                <form id="createForm">
+                    <div class="form-group">
+                        <label for="investigationName">Investigation Name *</label>
+                        <input type="text" id="investigationName" placeholder="e.g., Operatie Phoenix" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="investigationDescription">Description</label>
+                        <textarea id="investigationDescription" placeholder="Brief description of the investigation..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="investigationStartDate">Start Date</label>
+                        <input type="date" id="investigationStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="investigationStatus">Status</label>
+                        <select id="investigationStatus">
+                            <option value="active">Active</option>
+                            <option value="pending">Pending</option>
+                            <option value="completed">Completed</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="createBtn">
+                        Create Investigation
+                    </button>
+                </form>
+            </div>
+
+            <!-- Upload Data -->
+            <div class="card">
+                <h2>Upload Investigation Data</h2>
+                <div id="uploadAlert"></div>
+                
+                <div class="form-group">
+                    <label for="uploadInvestigation">Select Investigation *</label>
+                    <select id="uploadInvestigation" required>
+                        <option value="">Loading investigations...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="uploadSourceType">Data Source Type *</label>
+                    <select id="uploadSourceType" required>
+                        <option value="bank_transactions">Bank Transactions (CSV)</option>
+                        <option value="call_records">Call Records (CSV)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="uploadProvider">Provider</label>
+                    <input type="text" id="uploadProvider" placeholder="e.g., ING Bank, KPN">
+                </div>
+
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">
+                        <strong>Click to upload</strong> or drag and drop<br>
+                        CSV files only
+                    </div>
+                    <input type="file" id="fileInput" class="file-input" accept=".csv" multiple>
+                </div>
+
+                <div class="file-list" id="fileList"></div>
+
+                <button type="button" class="btn btn-primary" id="uploadBtn" disabled>
+                    Upload Files
+                </button>
+            </div>
+        </div>
+
+        <!-- Investigation List -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2>Active Investigations</h2>
+                <button class="btn btn-secondary" onclick="refreshAll()" title="Refresh all data">
+                    🔄 Refresh
+                </button>
+            </div>
+            <div id="investigationList" class="investigation-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading investigations...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8090/api/v1';
+        let investigations = [];
+        let selectedFiles = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInvestigations();
+            loadStats();
+            setupEventListeners();
+            
+            // Auto-refresh every 10 seconds
+            setInterval(() => {
+                loadInvestigations();
+                loadStats();
+            }, 10000);
+        });
+
+        function setupEventListeners() {
+            // Create form
+            document.getElementById('createForm').addEventListener('submit', handleCreateInvestigation);
+
+            // Upload zone
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('fileInput');
+
+            uploadZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('drag-over');
+            });
+
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('drag-over');
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('drag-over');
+                handleFileSelect({ target: { files: e.dataTransfer.files } });
+            });
+
+            // Upload button
+            document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_BASE}/investigations`);
+                const data = await response.json();
+                
+                // Handle both array and object response
+                const invs = Array.isArray(data) ? data : data.investigations || [];
+
+                const total = invs.length;
+                const active = invs.filter(i => i.status === 'active').length;
+
+                document.getElementById('totalInvestigations').textContent = total;
+                document.getElementById('activeInvestigations').textContent = active;
+                
+                // Load data source stats from all investigations
+                let allPending = 0;
+                let allProcessedToday = 0;
+                const today = new Date().toISOString().split('T')[0];
+
+                for (const inv of invs) {
+                    try {
+                        const sourcesResponse = await fetch(`${API_BASE}/investigations/${inv.investigation_id}/files`);
+                        if (sourcesResponse.ok) {
+                            const sourcesData = await sourcesResponse.json();
+                            const sources = sourcesData.files || [];
+                            
+                            allPending += sources.filter(s => s.processing_status === 'pending').length;
+                            allProcessedToday += sources.filter(s => 
+                                s.processing_status === 'completed' && 
+                                s.received_date?.startsWith(today)
+                            ).length;
+                        }
+                    } catch (err) {
+                        console.error(`Error loading sources for ${inv.investigation_id}:`, err);
+                    }
+                }
+
+                document.getElementById('pendingFiles').textContent = allPending;
+                document.getElementById('processedFiles').textContent = allProcessedToday;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('totalInvestigations').textContent = '0';
+                document.getElementById('activeInvestigations').textContent = '0';
+                document.getElementById('pendingFiles').textContent = '0';
+                document.getElementById('processedFiles').textContent = '0';
+            }
+        }
+
+        async function loadInvestigations() {
+            try {
+                const response = await fetch(`${API_BASE}/investigations`);
+                const data = await response.json();
+                // API returns array directly, not wrapped in object
+                investigations = Array.isArray(data) ? data : data.investigations || [];
+
+                displayInvestigations(investigations);
+                updateInvestigationSelect(investigations);
+            } catch (error) {
+                console.error('Error loading investigations:', error);
+                showAlert('investigationList', 'Error loading investigations', 'error');
+            }
+        }
+
+        function displayInvestigations(investigations) {
+            const container = document.getElementById('investigationList');
+            
+            if (investigations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <p>No investigations yet. Create your first one!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = investigations.map(inv => `
+                <div class="investigation-item" onclick="viewInvestigation('${inv.investigation_id}')">
+                    <div class="investigation-header">
+                        <div>
+                            <div class="investigation-id">${inv.investigation_id}</div>
+                            <div class="investigation-name">${inv.name}</div>
+                        </div>
+                        <span class="status-badge status-${inv.status}">${inv.status}</span>
+                    </div>
+                    <div class="investigation-meta">
+                        <span>📅 ${new Date(inv.created_at).toLocaleDateString('nl-NL')}</span>
+                        ${inv.start_date ? `<span>🚀 Start: ${new Date(inv.start_date).toLocaleDateString('nl-NL')}</span>` : ''}
+                    </div>
+                    <div class="data-sources" id="sources-${inv.investigation_id}">
+                        <div style="color: #9ca3af; font-size: 12px;">Loading data sources...</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Load data sources for each investigation
+            investigations.forEach(inv => loadDataSources(inv.investigation_id));
+        }
+
+        async function loadDataSources(investigationId) {
+            try {
+                const response = await fetch(`${API_BASE}/investigations/${investigationId}/files`);
+                const data = await response.json();
+                
+                console.log(`Loading data sources for ${investigationId}:`, data);
+                
+                const container = document.getElementById(`sources-${investigationId}`);
+                if (!container) {
+                    console.warn(`Container not found for ${investigationId}`);
+                    return;
+                }
+
+                if (!data.files || data.files.length === 0) {
+                    container.innerHTML = '<div style="color: #9ca3af; font-size: 12px;">No data sources uploaded</div>';
+                    return;
+                }
+
+                console.log(`Rendering ${data.files.length} files for ${investigationId}`);
+
+                container.innerHTML = data.files.map((source, idx) => {
+                    console.log(`Rendering file ${idx + 1}/${data.files.length}:`, source.file_name, source.processing_status);
+                    const pipelineStatus = getPipelineStatus(source);
+                    return `
+                        <div class="data-source-item">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span class="source-name">📄 ${source.file_name}</span>
+                                <span class="source-status source-${source.processing_status}">
+                                    ${source.processing_status}
+                                </span>
+                            </div>
+                            ${pipelineStatus}
+                        </div>
+                    `;
+                }).join('');
+                
+                console.log(`✅ Successfully rendered ${data.files.length} files for ${investigationId}`);
+            } catch (error) {
+                console.error(`Error loading sources for ${investigationId}:`, error);
+            }
+        }
+
+        function getPipelineStatus(source) {
+            try {
+                // Define pipeline steps
+                const steps = [
+                    { id: 'upload', label: 'Upload', icon: '📤' },
+                    { id: 'storage', label: 'Storage', icon: '💾' },
+                    { id: 'process', label: 'Process', icon: '⚙️' },
+                    { id: 'parquet', label: 'Parquet', icon: '📊' },
+                    { id: 'complete', label: 'Complete', icon: '✓' }
+                ];
+
+                // Determine current step based on processing status
+                let currentStepIndex = 0;
+                let failedStep = -1;
+
+                switch (source.processing_status) {
+                case 'pending':
+                    currentStepIndex = 1; // Upload completed, in storage
+                    break;
+                case 'processing':
+                    currentStepIndex = 2; // Processing
+                    break;
+                case 'completed':
+                    currentStepIndex = 5; // All complete
+                    break;
+                case 'failed':
+                    currentStepIndex = 2;
+                    failedStep = 2; // Failed at processing
+                    break;
+                case 'skipped':
+                    currentStepIndex = 1;
+                    failedStep = 1;
+                    break;
+            }
+
+            const stepsHTML = steps.map((step, index) => {
+                let stepClass = '';
+                if (failedStep === index) {
+                    stepClass = 'failed';
+                } else if (index < currentStepIndex) {
+                    stepClass = 'completed';
+                } else if (index === currentStepIndex && source.processing_status === 'processing') {
+                    stepClass = 'current';
+                }
+
+                return `
+                    <div class="pipeline-step ${stepClass}">
+                        <div class="step-icon">${step.icon}</div>
+                        <div class="step-label">${step.label}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Format timestamps
+            const uploadedAt = source.created_at ? new Date(source.created_at).toLocaleString('nl-NL', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }) : '-';
+            
+            const processedAt = source.processing_completed_at ? new Date(source.processing_completed_at).toLocaleString('nl-NL', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }) : '-';
+
+            return `
+                <div class="pipeline-status">
+                    <div class="pipeline-steps">
+                        ${stepsHTML}
+                    </div>
+                    <div class="pipeline-details">
+                        <div class="pipeline-detail-row">
+                            <span>Uploaded:</span>
+                            <span>${uploadedAt}</span>
+                        </div>
+                        ${source.processing_completed_at ? `
+                            <div class="pipeline-detail-row">
+                                <span>Processed:</span>
+                                <span>${processedAt}</span>
+                            </div>
+                        ` : ''}
+                        <div class="pipeline-detail-row">
+                            <span>Size:</span>
+                            <span>${formatFileSize(source.file_size_bytes || 0)}</span>
+                        </div>
+                        ${source.error_message ? `
+                            <div class="pipeline-detail-row" style="color: #ef4444;">
+                                <span>Error:</span>
+                                <span>${source.error_message}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            } catch (error) {
+                console.error('Error in getPipelineStatus:', error, source);
+                return `<div style="color: red; font-size: 11px;">Error rendering pipeline</div>`;
+            }
+        }
+
+        function updateInvestigationSelect(investigations) {
+            const select = document.getElementById('uploadInvestigation');
+            select.innerHTML = '<option value="">Select an investigation...</option>' +
+                investigations
+                    .filter(inv => inv.status === 'active' || inv.status === 'pending')
+                    .map(inv => `<option value="${inv.investigation_id}">${inv.investigation_id} - ${inv.name}</option>`)
+                    .join('');
+        }
+
+        async function handleCreateInvestigation(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('createBtn');
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+
+            const formData = {
+                name: document.getElementById('investigationName').value,
+                description: document.getElementById('investigationDescription').value,
+                start_date: document.getElementById('investigationStartDate').value || null,
+                status: document.getElementById('investigationStatus').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/investigations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('createAlert', `Investigation ${data.investigation_id} created successfully!`, 'success');
+                    document.getElementById('createForm').reset();
+                    loadInvestigations();
+                } else {
+                    throw new Error(data.message || 'Failed to create investigation');
+                }
+            } catch (error) {
+                showAlert('createAlert', error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Investigation';
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            selectedFiles = [...selectedFiles, ...files];
+            displayFileList();
+            updateUploadButton();
+        }
+
+        function displayFileList() {
+            const container = document.getElementById('fileList');
+            
+            if (selectedFiles.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = selectedFiles.map((file, index) => `
+                <div class="file-item">
+                    <span class="file-name">📄 ${file.name}</span>
+                    <span class="file-size">${formatFileSize(file.size)}</span>
+                    <span class="file-remove" onclick="removeFile(${index})">✕</span>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            displayFileList();
+            updateUploadButton();
+        }
+
+        function updateUploadButton() {
+            const btn = document.getElementById('uploadBtn');
+            const investigation = document.getElementById('uploadInvestigation').value;
+            btn.disabled = !investigation || selectedFiles.length === 0;
+        }
+
+        async function handleUpload() {
+            const investigationId = document.getElementById('uploadInvestigation').value;
+            const sourceType = document.getElementById('uploadSourceType').value;
+            const provider = document.getElementById('uploadProvider').value;
+
+            if (!investigationId || selectedFiles.length === 0) {
+                showAlert('uploadAlert', 'Please select investigation and files', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+
+            try {
+                for (const file of selectedFiles) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('source_type', sourceType);
+                    formData.append('provider', provider || 'Unknown');
+
+                    const response = await fetch(
+                        `${API_BASE}/investigations/${investigationId}/upload`,
+                        {
+                            method: 'POST',
+                            body: formData
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to upload ${file.name}`);
+                    }
+                }
+
+                showAlert('uploadAlert', `Successfully uploaded ${selectedFiles.length} file(s)!`, 'success');
+                selectedFiles = [];
+                displayFileList();
+                document.getElementById('fileInput').value = '';
+                
+                // Reload investigation list and stats
+                await loadInvestigations();
+                await loadStats();
+                
+                // Reload data sources for the investigation if it's expanded
+                const sourcesContainer = document.getElementById(`sources-${investigationId}`);
+                if (sourcesContainer) {
+                    await loadDataSources(investigationId);
+                }
+            } catch (error) {
+                showAlert('uploadAlert', error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Upload Files';
+                updateUploadButton();
+            }
+        }
+
+        function showAlert(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        async function refreshAll() {
+            console.log('Manual refresh triggered');
+            await loadInvestigations();
+            await loadStats();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function viewInvestigation(investigationId) {
+            // Open investigation detail page
+            window.location.href = `investigation-detail.html?id=${investigationId}`;
+        }
+
+        // Listen for select changes
+        document.getElementById('uploadInvestigation').addEventListener('change', updateUploadButton);
+    </script>
+</body>
+</html>

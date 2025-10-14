@@ -1,345 +1,376 @@
 # 🚀 Modern Data Platform
 
-Complete lokale data platform met API gateway, SQL engine, visualization, data lake en governance.
+Complete modern data platform with streaming, lakehouse, visualization, and governance capabilities.
 
-## 🎯 Dashboard
+---
 
-**Open [dashboard.html](dashboard.html) in je browser voor een visueel overzicht van alle componenten!**
+## 🎯 Platform Overview
 
-## � Documentation
+**End-to-end data platform featuring:**
+- 📊 **Data Warehousing**: PostgreSQL with cell towers & crypto data  
+- 🌊 **Streaming**: Kafka + Iceberg REST catalog for real-time crypto trades
+- 🎨 **Visualization**: Apache Superset for dashboards & analytics
+- 🔧 **Orchestration**: Dagster for workflow management
+- 🔍 **Query Engine**: DuckDB for fast SQL analytics
+- 📦 **Data Lake**: MinIO (S3-compatible) for Iceberg tables
+- 🚪 **API Gateway**: Kong + Konga for API management
+- 📈 **Lineage**: Marquez for data lineage tracking
+- 🔎 **Catalog**: Amundsen for data discovery
 
-- 🆕 **[Data Engineer Onboarding](docs/DATA_ENGINEER_ONBOARDING.md)** - Complete guide voor nieuwe engineers
-  - CSV laden vanuit cloud storage (GCS, S3, MinIO)
-  - Streaming data setup (Kafka, WebSocket)
-  - Externe API integratie met voorbeelden
-  - Best practices en troubleshooting
-- 🚀 **[Quick Reference](docs/QUICK_REFERENCE.md)** - Handige commando's en workflows
-- 🌤️ **[Weather API Docs](docs/WEATHER_API.md)** - Complete API reference
-- 📊 **[Superset Dashboards Guide](docs/SUPERSET_DASHBOARDS.md)** - Dashboard setup
-- 🔧 **[Dagster gRPC Fix](docs/DAGSTER_GRPC_FIX.md)** - Troubleshooting connection issues
+---
 
-## �📋 Quick Links
+## ⚡ Quick Start (5 minutes)
 
-- **Weather API**: http://localhost:8000/api/v1/weather (see [docs/WEATHER_API.md](docs/WEATHER_API.md)) 🌤️
-- **Amundsen**: http://localhost:5005 (Data Catalog & Glossary) ⭐
-- **Superset**: http://localhost:8088 (admin/admin)
-- **Marquez**: http://localhost:3001
-- **MinIO**: http://localhost:9001 (minio/minio12345)
-- **Trino**: http://localhost:8080
-- **Konga**: http://localhost:1337
-- **API Docs**: http://localhost:8000/docs
-- **Dagster**: http://localhost:3000
-
-## 🏗️ Architectuur
-
-```
-API Gateway (Kong + Konga)
-    ↓
-Application Layer (Superset, Cell API)
-    ↓
-Analytics (Trino, Marquez)
-    ↓
-Storage (PostgreSQL, MinIO)
-```
-
-## ⚡ Start
+### 1. Start the Platform
 
 ```bash
-# Start core platform
+# Option A: Minimal (Superset + PostgreSQL + MinIO + Dagster)
+docker-compose --profile tiny up -d
+
+# Option B: Full platform (all features except streaming)
 docker-compose --profile standard up -d
 
-# Start Amundsen (data catalog)
+# Option C: With streaming (includes Kafka + Iceberg)
+docker-compose --profile streaming up -d
+
+# Option D: With data catalog (includes Amundsen)
 docker-compose --profile amundsen up -d
-
-# Load data
-docker-compose up etl
-
-# Load metadata into Amundsen
-python3 amundsen/databuilder_ingestion.py
-python3 amundsen/create_glossary.py
-
-# Check status
-docker-compose ps
 ```
 
-## 🛠️ Services
+### 2. Initialize Platform
 
-| Service | Port | Credentials |
-|---------|------|-------------|
-| **Weather API** | 8000/api/v1/weather | API Key: demo-weather-api-key-2025 |
-| **Amundsen** | 5005 | - |
-| PostgreSQL | 5432 | superset/superset |
-| MinIO | 9000, 9001 | minio/minio12345 |
-| Superset | 8088 | admin/admin |
-| Trino | 8080 | admin/- |
-| Marquez | 5000, 3001 | - |
-| Kong | 8000, 8001 | - |
-| Konga | 1337 | Setup bij eerste run |
-| Cell API | 3100 | - |
-| Neo4j (Amundsen) | 7474, 7687 | neo4j/test |
-
-## 🌤️ Weather API
-
-**Base URL:** http://localhost:8000/api/v1/weather
-
-**Authentication:** API Key required (Header: `X-API-Key`)
-
-**Rate Limits:**
-- 100 requests/minute
-- 5,000 requests/hour
-
-**Endpoints:**
-- `GET /observations/latest` - Latest weather per station
-- `GET /observations` - Historical observations (with filters)
-- `GET /stations` - Station metadata with GPS coordinates
-
-**Quick Start:**
 ```bash
-# Get latest weather
-curl -H "X-API-Key: demo-weather-api-key-2025" \
-  http://localhost:8000/api/v1/weather/observations/latest
-
-# Get Amsterdam observations
-curl -H "X-API-Key: demo-weather-api-key-2025" \
-  "http://localhost:8000/api/v1/weather/observations?station=Amsterdam&limit=10"
-
-# Get all stations
-curl -H "X-API-Key: demo-weather-api-key-2025" \
-  http://localhost:8000/api/v1/weather/stations
+# Run bootstrap script to initialize all services
+./scripts/bootstrap.sh
 ```
 
-**Documentation:** See [docs/WEATHER_API.md](docs/WEATHER_API.md) for complete API reference.
+**This script will:**
+- ✅ Wait for all services to be healthy
+- ✅ Initialize Superset (DB migrations, admin user, permissions)
+- ✅ Create MinIO bucket for data lake
+- ✅ Sync crypto data to PostgreSQL (if available)
 
-## 🔄 ETL Pipeline
+**First-time setup:** Takes ~2 minutes
 
-**Flow:**
-```
-Google Cloud Storage → MinIO → PostgreSQL → Marquez
-```
+### 3. Access Services
 
-**Run:**
+| Service | URL | Credentials | Purpose |
+|---------|-----|-------------|---------|
+| **Superset** | http://localhost:8088 | admin/admin | Dashboards & Visualization |
+| **Dagster** | http://localhost:3000 | - | Workflow Orchestration |
+| **MinIO Console** | http://localhost:9001 | minio/minio12345 | S3-compatible Data Lake |
+| **Marquez UI** | http://localhost:3001 | - | Data Lineage |
+| **Konga** | http://localhost:1337 | Setup on first run | API Gateway UI |
+| **Amundsen** | http://localhost:5005 | - | Data Catalog |
+
+---
+
+## 📊 Available Datasets
+
+### Cell Towers Dataset
+- **Source**: OpenCellID via Google Cloud Storage
+- **Records**: 47,114 cell tower locations
+- **Schema**: `cell_towers.clean_204`
+- **Columns**: mcc, net, area, cell, unit, lon, lat, range, samples, changeable, created, updated, averageSignal
+
+### Crypto Streaming Dataset (Optional)
+- **Source**: Binance WebSocket → Kafka → Iceberg
+- **Bronze Layer**: `crypto.trades_bronze` (raw trades)
+- **Silver Layer**: `crypto.trades_1min` (OHLCV candles aggregated per minute)
+- **Symbols**: ETHUSDT, BNBUSDT
+- **Setup**: See [Crypto Stream Quickstart](docs/CRYPTO_STREAM_QUICKSTART.md)
+
+---
+
+## 🚀 Common Workflows
+
+### Load Cell Towers Data (One-time)
+
 ```bash
+# Run ETL job to load cell towers from GCS
 docker-compose up etl
 ```
 
-**Result:** 47,114 cell tower records in `cell_towers.clean_204`
+**What it does:**
+1. Downloads 204.csv from Google Cloud Storage
+2. Loads to staging table in PostgreSQL
+3. Cleans and validates data
+4. Creates final table `cell_towers.clean_204`
+5. Registers metadata in Marquez
 
-## 📊 Data Governance
+### Start Crypto Streaming Pipeline
 
-### Amundsen - Data Catalog ⭐
-
-**UI:** http://localhost:5005
-
-**Features:**
-- 🔍 Data discovery & search
-- 📚 Business glossary (5 terms)
-- 📖 Column-level metadata (14 columns)
-- 🏷️ Tags & PII classification
-- 👥 Data ownership
-- 📈 Quality metrics (97%)
-
-**Setup:**
 ```bash
-# Start Amundsen
-docker-compose --profile amundsen up -d
+# 1. Start streaming services
+docker-compose --profile streaming up -d
 
-# Load metadata
-python3 amundsen/databuilder_ingestion.py
+# 2. Materialize bronze layer (consumes Kafka → Iceberg)
+docker-compose exec dagster dagster asset materialize -m crypto_stream --select crypto_trades_bronze
 
-# Create business glossary
-python3 amundsen/create_glossary.py
+# 3. Materialize silver layer (aggregates to 1-minute candles)
+docker-compose exec dagster dagster asset materialize -m crypto_stream --select crypto_trades_1min
+
+# 4. Sync to PostgreSQL for Superset
+./scripts/bootstrap.sh
 ```
 
-**Demo:** See `amundsen/DEMO_SCRIPT.md` for 8-minute presentation
+### Query Data in Superset
 
-### Marquez - Data Lineage
-
-**UI:** http://localhost:3001
-
-**Features:**
-- Visual lineage graph
-- Automated via OpenLineage
-- Job execution history
-- Technical metadata
-
-**API:**
 ```bash
-# List datasets
-curl http://localhost:5000/api/v1/namespaces/demo/datasets
+# 1. Open Superset
+open http://localhost:8088
 
-# Get dataset
-curl http://localhost:5000/api/v1/namespaces/demo/datasets/cell_towers.clean_204
-```
+# 2. Login: admin / admin
 
-**Governance Strategy:**
-- **Amundsen**: Business context, glossary, discovery
-- **Marquez**: Technical lineage, job tracking
+# 3. SQL Lab → Database: PostgreSQL - Data Platform
 
-## 🔍 Query Examples
-
-### PostgreSQL
-```bash
-docker-compose exec postgres psql -U superset -d superset
-```
-
-```sql
--- Data overview
-SELECT COUNT(*) FROM cell_towers.clean_204;
-
--- By radio type
-SELECT radio, COUNT(*) FROM cell_towers.clean_204 GROUP BY radio;
-
--- By country
-SELECT mcc, COUNT(*) as towers 
-FROM cell_towers.clean_204 
-GROUP BY mcc 
-ORDER BY towers DESC 
+# 4. Run queries:
+# Cell towers by country
+SELECT mcc, COUNT(*) as tower_count
+FROM cell_towers.clean_204
+GROUP BY mcc
+ORDER BY tower_count DESC
 LIMIT 10;
+
+# Latest crypto prices
+SELECT * FROM crypto.latest_prices;
+
+# OHLCV candles
+SELECT * FROM crypto.trades_1min
+ORDER BY minute DESC
+LIMIT 20;
 ```
 
-### Trino
+---
+
+## 📚 Documentation
+
+### 🎓 Getting Started
+- 🚀 **[Quick Reference](docs/QUICK_REFERENCE.md)** - Essential commands & workflows
+- 👨‍💻 **[Data Engineer Onboarding](docs/DATA_ENGINEER_ONBOARDING.md)** - Complete onboarding guide
+- 📊 **[Platform Status](docs/PLATFORM_STATUS.md)** - Current capabilities
+
+### 💰 Crypto Streaming
+- 🏗️ **[Crypto Stream Architecture](docs/CRYPTO_STREAM_ARCHITECTURE.md)** - System design
+- ⚡ **[Crypto Stream Quickstart](docs/CRYPTO_STREAM_QUICKSTART.md)** - Get started guide
+
+### 📊 Superset & Visualization
+- 🔌 **[Superset Database Connections](docs/SUPERSET_DATABASE_CONNECTIONS.md)** - PostgreSQL & DuckDB setup
+- ✅ **[Superset Problem Solved](docs/SUPERSET_PROBLEM_SOLVED.md)** - DuckDB workarounds
+- 🦆 **[DuckDB Superset Guide](docs/DUCKDB_SUPERSET_GUIDE.md)** - Fast analytics on Parquet/Iceberg
+- 📋 **[Superset Quick Reference](docs/SUPERSET_QUICK_REFERENCE.md)** - Connection strings & queries
+
+### 🔧 Platform Components
+- 🌤️ **[Weather API](docs/WEATHER_API.md)** - RESTful weather data API (bonus feature)
+- 🔧 **[Dagster gRPC Fix](docs/DAGSTER_GRPC_FIX.md)** - Troubleshooting guide
+- 📈 **[Marquez Integration](docs/MARQUEZ_INTEGRATION.md)** - Data lineage setup
+
+---
+
+## 🏗️ Architecture
+
+### Data Flow
+
+```
+┌─────────────────┐
+│  Data Sources   │
+│  - GCS (CSV)    │
+│  - Binance WS   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Ingestion      │
+│  - ETL Jobs     │
+│  - Kafka        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Storage        │
+│  - PostgreSQL   │
+│  - MinIO/Iceberg│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Query Layer    │
+│  - DuckDB       │
+│  - PostgreSQL   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Presentation   │
+│  - Superset     │
+│  - APIs         │
+└─────────────────┘
+```
+
+### Service Dependencies
+
+```
+PostgreSQL (Core Database)
+    ├── Superset (requires PostgreSQL)
+    ├── Dagster (metadata storage)
+    ├── Marquez (lineage storage)
+    └── ETL jobs (data warehouse)
+
+MinIO (Data Lake)
+    ├── Iceberg REST Catalog
+    └── Dagster (Iceberg I/O)
+
+Kafka (Streaming)
+    └── Dagster crypto_stream (consumer)
+```
+
+---
+
+## 🧹 Maintenance
+
+### Stop & Clean
+
 ```bash
-docker-compose exec trino trino
-```
+# Stop all services
+docker-compose down
 
-```sql
--- Show catalogs
-SHOW CATALOGS;
-
--- Query PostgreSQL
-SELECT radio, COUNT(*) 
-FROM postgresql.cell_towers.clean_204 
-GROUP BY radio;
-
--- Sample data
-SELECT * FROM tpch.tiny.nation LIMIT 10;
-```
-
-### MinIO (AWS CLI)
-```bash
-aws --endpoint-url http://localhost:9000 s3 ls s3://lake/raw/celltowers/
-```
-
-## 🌐 REST API
-
-**Base URL:** http://localhost:3100
-
-```bash
-# Health
-GET /health
-
-# All towers
-GET /api/v1/celltowers
-
-# By country
-GET /api/v1/celltowers/country/204
-
-# By radio
-GET /api/v1/celltowers/radio/LTE
-
-# Bounding box
-GET /api/v1/celltowers/bbox?minLat=50&maxLat=54&minLon=3&maxLon=7
-```
-
-**Via Kong:**
-```bash
-curl http://localhost:8000/celltowers/health
-```
-
-## 🚨 Troubleshooting
-
-### Service issues
-```bash
-# Logs
-docker-compose logs [service-name]
-
-# Restart
-docker-compose restart [service-name]
-
-# Full restart
-docker-compose down && docker-compose --profile standard up -d
-```
-
-### Common problems
-
-**PostgreSQL not ready:**
-```bash
-docker-compose ps postgres
-docker-compose exec postgres pg_isready -U superset
-```
-
-**Superset admin missing:**
-```bash
-docker-compose exec superset superset fab create-admin \
-  --username admin --password admin \
-  --firstname Admin --lastname User \
-  --email admin@localhost
-```
-
-**Marquez empty:**
-```bash
-docker-compose up etl
-```
-
-**Clean restart:**
-```bash
+# Stop and remove volumes (DELETES ALL DATA!)
 docker-compose down -v
-docker-compose --profile standard up -d
-docker-compose up etl
+
+# Clean up unused images
+docker system prune -a
 ```
 
-## 📦 Project Structure
-
-```
-├── api/                  # Cell Towers REST API
-├── etl/                 # ETL Pipeline
-│   ├── pipeline.py
-│   └── sql/
-├── kong/                # API Gateway config
-├── marquez/             # Lineage config
-├── postgres-init/       # DB initialization
-├── superset/            # Superset customization
-├── trino/               # Trino configuration
-│   └── catalog/
-└── docker-compose.yml
-```
-
-## 🎯 Data Quality
-
-ETL implementeert:
-- ✅ Coordinate validation (lat/lon ranges)
-- ✅ Deduplication (unique cell IDs)
-- ✅ NULL checks
-- ✅ Type validation
-- ✅ Performance indexes
-
-## 🔐 Security
-
-⚠️ **Development setup - NOT for production!**
-
-**Voor productie:**
-- Wijzig alle passwords
-- Enable SSL/TLS
-- Configure authentication
-- Enable Kong auth plugins
-- Use secrets management
-- Enable CSRF protection
-- Configure network security
-- Enable audit logging
-
-## 📚 Resources
-
-- [Superset](https://superset.apache.org/)
-- [Trino](https://trino.io/)
-- [Marquez](https://marquezproject.github.io/marquez/)
-- [Kong](https://docs.konghq.com/)
-- [MinIO](https://min.io/docs/)
-
-## 💡 Platform Status
+### Restart from Scratch
 
 ```bash
-curl http://localhost:5000/api/v1/namespaces    # Marquez
-curl http://localhost:8088/health               # Superset  
-curl http://localhost:8080/v1/info              # Trino
-curl http://localhost:3100/health               # Cell API
+# 1. Stop everything and remove volumes
+docker-compose down -v
+
+# 2. Start services
+docker-compose --profile standard up -d
+
+# 3. Run bootstrap
+./scripts/bootstrap.sh
+
+# 4. Load data
+docker-compose up etl
+
+# Done! Everything is fresh and initialized
 ```
+
+### Backup Important Data
+
+```bash
+# Backup PostgreSQL
+docker-compose exec postgres pg_dump -U superset superset > backup_$(date +%Y%m%d).sql
+
+# Backup MinIO bucket
+docker-compose exec dagster python3 -c "
+from minio import Minio
+client = Minio('minio:9000', access_key='minio', secret_key='minio12345', secure=False)
+# Use minio client to download bucket contents
+"
+
+# Restore PostgreSQL
+cat backup_20251012.sql | docker-compose exec -T postgres psql -U superset -d superset
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Service won't start
+
+```bash
+# Check service status
+docker-compose ps
+
+# View logs
+docker-compose logs -f <service_name>
+
+# Restart specific service
+docker-compose restart <service_name>
+```
+
+### Superset can't connect to database
+
+```bash
+# Re-initialize Superset
+docker-compose exec superset superset db upgrade
+docker-compose exec superset superset init
+docker-compose restart superset
+```
+
+### Dagster assets won't materialize
+
+```bash
+# Check Dagster logs
+docker-compose logs -f dagster
+
+# Verify MinIO is accessible
+docker-compose exec dagster curl http://minio:9000/minio/health/live
+
+# Check Kafka (if using streaming)
+docker-compose exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
+```
+
+### Out of memory errors
+
+```bash
+# Check resource usage
+docker stats
+
+# Increase Docker Desktop memory (Preferences → Resources → Memory)
+# Recommended: 8GB minimum for full platform
+```
+
+---
+
+## 🤝 Contributing
+
+### Project Structure
+
+```
+data-platform/
+├── docker-compose.yml          # Service orchestration
+├── scripts/
+│   └── bootstrap.sh           # Platform initialization
+├── postgres-init/             # PostgreSQL init scripts
+│   ├── 01_init_marquez.sql
+│   ├── 02_init_weather.sql
+│   └── 03_init_crypto.sql
+├── orchestration/             # Dagster workflows
+│   ├── crypto_stream/         # Crypto streaming pipeline
+│   └── weather_pipeline/      # Weather data pipeline
+├── superset/                  # Superset configuration
+├── etl/                       # Cell towers ETL
+├── api/                       # RESTful APIs
+└── docs/                      # Documentation
+```
+
+### Development Workflow
+
+1. Make changes to service configuration
+2. Test with `docker-compose up -d`
+3. Run `./scripts/bootstrap.sh` to verify initialization
+4. Update documentation in `docs/`
+5. Commit and push
+
+---
+
+## 📝 License
+
+This project is for educational and demonstration purposes.
+
+---
+
+## 🎉 What's Next?
+
+1. ✅ **Load cell towers data**: `docker-compose up etl`
+2. ✅ **Create your first Superset dashboard** (see [docs/SUPERSET_DATABASE_CONNECTIONS.md](docs/SUPERSET_DATABASE_CONNECTIONS.md))
+3. ✅ **Start crypto streaming** (see [docs/CRYPTO_STREAM_QUICKSTART.md](docs/CRYPTO_STREAM_QUICKSTART.md))
+4. ✅ **Explore data lineage** in Marquez: http://localhost:3001
+5. ✅ **Query with DuckDB**: Fast analytics on Iceberg tables
+
+**Questions?** Check the [docs/](docs/) folder for detailed guides!

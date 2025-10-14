@@ -211,10 +211,10 @@ dagster dev -f weather_pipeline
 - Need to run `sync_to_elasticsearch.py` after first data load
 - Tags: weather, observations, quality-checked
 
-### Trino
+### PostgreSQL Queries
 - Query weather data alongside cell towers:
   ```sql
-  SELECT * FROM postgresql.weather.weather_near_towers
+  SELECT * FROM weather.weather_near_towers
   WHERE distance_km < 10
   LIMIT 100;
   ```

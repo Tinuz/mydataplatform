@@ -109,8 +109,38 @@ FROM pg_tables
 WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
 -- Recent ingestions
 SELECT * FROM bronze.weather ORDER BY ingested_at DESC LIMIT 10;
+```
+
+### DuckDB (Embedded Query Engine)
+
+```python
+# Query Iceberg tables with DuckDB
+from crypto_stream.duckdb_helper import quick_query
+
+# Query Parquet/Iceberg data
+df = quick_query("""
+    SELECT symbol, AVG(price) as avg_price
+    FROM trades_bronze
+    WHERE timestamp > NOW() - INTERVAL '1 hour'
+    GROUP BY symbol
+""")
+
+# DuckDB CLI (alternative)
+docker-compose exec dagster python -c "
+from crypto_stream.duckdb_helper import quick_query
+print(quick_query('SELECT COUNT(*) FROM trades_bronze'))
+"
+```
+
+### Cross-Database Queries
+
+```sql
+# PostgreSQL for OLTP data
+````
 ```
 
 ### Trino

@@ -28,6 +28,10 @@ build/
 dist/
 *.egg-info/
 
+# DuckDB generated files
+*.duckdb
+*.duckdb.wal
+
 # Node
 node_modules/
 npm-debug.log
