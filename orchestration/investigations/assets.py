@@ -479,8 +479,13 @@ def process_bank_transactions(
             
             # Validate required columns - accept different column name variants
             # Different banks use different column names, these will be normalized in clean_bank_transactions()
-            required_iban_variants = ['iban', 'rekeningnummer', 'from_account', 'account_number', 'source_iban', 'dest_iban']
-            required_amount_variants = ['bedrag', 'amount', 'bedrag (eur)', 'value']
+            required_iban_variants = [
+                'iban', 'rekeningnummer', 'from_account', 'account_number', 'source_iban', 'dest_iban',
+                'iban_from', 'iban_to', 'debit_account', 'credit_account'  # Bank A and Bank D variants
+            ]
+            required_amount_variants = [
+                'bedrag', 'amount', 'bedrag (eur)', 'value', 'trans_amount'  # Added Bank D variant
+            ]
             
             has_iban = any(col in df.columns for col in required_iban_variants)
             has_amount = any(col in df.columns for col in required_amount_variants)
