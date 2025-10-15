@@ -16,6 +16,7 @@ echo "This will remove:"
 echo "  - All investigations (including OND-2025-000001, 000002, 000003, MARVEL)"
 echo "  - All raw data (transactions, calls, messages)"
 echo "  - All canonical data (canonical_transaction, canonical_communication)"
+echo "  - All MinIO files (investigations bucket)"
 echo "  - All dbt staging data will be regenerated on next run"
 echo ""
 read -p "Are you sure you want to continue? Type 'DELETE ALL' to confirm: " CONFIRM
@@ -84,15 +85,45 @@ echo "✓ Raw data deleted"
 echo ""
 
 # Step 4: Delete investigations (with CASCADE DELETE, this is now redundant but kept for clarity)
-echo "[4/5] Deleting all investigations..."
+echo "[4/6] Deleting all investigations..."
 docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME <<EOF
 DELETE FROM investigations;
 EOF
 echo "✓ Investigations deleted (CASCADE DELETE removed all related data)"
 echo ""
 
-# Step 5: Verify cleanup
-echo "[5/5] Verifying cleanup..."
+# Step 5: Clean MinIO investigations bucket
+echo "[5/6] Cleaning MinIO investigations bucket..."
+MINIO_FILES=$(docker exec dp_dagster python3 -c "
+from minio import Minio
+client = Minio('minio:9000', access_key='minio', secret_key='minio12345', secure=False)
+
+# List all objects in investigations bucket
+try:
+    objects = list(client.list_objects('investigations', recursive=True))
+    count = len(objects)
+    
+    # Delete all objects
+    for obj in objects:
+        client.remove_object('investigations', obj.object_name)
+    
+    print(f'{count}')
+except Exception as e:
+    if 'NoSuchBucket' in str(e):
+        print('0')
+    else:
+        print(f'Error: {e}')
+" 2>&1)
+
+if [[ "$MINIO_FILES" =~ ^[0-9]+$ ]]; then
+    echo "✓ Deleted $MINIO_FILES files from MinIO investigations bucket"
+else
+    echo "⚠️  MinIO cleanup: $MINIO_FILES"
+fi
+echo ""
+
+# Step 6: Verify cleanup
+echo "[6/6] Verifying cleanup..."
 AFTER_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t <<EOF
 SELECT 
     (SELECT COUNT(*) FROM investigations) as investigations,
@@ -113,7 +144,7 @@ if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "=========================================="
     echo "Cleanup Summary"
     echo "=========================================="
-    echo "Removed:"
+    echo "Database cleanup:"
     echo "  - Investigations: $(echo $BEFORE_COUNTS | awk '{print $1}') → 0"
     echo "  - Data sources: $(echo $BEFORE_COUNTS | awk '{print $3}') → 0"
     echo "  - Raw transactions: $(echo $BEFORE_COUNTS | awk '{print $5}') → 0"
@@ -121,6 +152,13 @@ if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "  - Raw messages: $(echo $BEFORE_COUNTS | awk '{print $9}') → 0"
     echo "  - Canonical transactions: $(echo $BEFORE_COUNTS | awk '{print $11}') → 0"
     echo "  - Canonical communications: $(echo $BEFORE_COUNTS | awk '{print $13}') → 0"
+    echo ""
+    echo "MinIO cleanup:"
+    if [[ "$MINIO_FILES" =~ ^[0-9]+$ ]]; then
+        echo "  - Files deleted: $MINIO_FILES"
+    else
+        echo "  - Status: Check logs above"
+    fi
     echo ""
     echo "✅ Platform is now clean and ready for demo!"
     echo ""
@@ -132,7 +170,12 @@ if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "   ./verify_marvel_case.sh  (should show 0 records)"
     echo ""
     echo "2. Start demo with fresh load:"
-    echo "   ./load_marvel_case.sh"
+    echo "   Option A - Direct upload:"
+    echo "     ./load_marvel_case.sh"
+    echo ""
+    echo "   Option B - GCS bucket ingestion (automatic):"
+    echo "     Upload files to gs://public_data_demo/investigations/{ID}/{type}/"
+    echo "     Files are auto-ingested within 60 seconds"
     echo ""
     echo "3. Show Dagster UI (empty state):"
     echo "   http://localhost:3000"
