@@ -671,35 +671,49 @@
             <div class="card" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-left: 4px solid #667eea;">
                 <h2>🤖 Automated Pipeline</h2>
                 <p style="color: #4b5563; margin-bottom: 15px; font-size: 14px;">
-                    De volledige pipeline draait automatisch via sensors. Geen handmatige actie nodig!
+                    De volledige pipeline draait automatisch via sensors en dbt. Geen handmatige actie nodig!
                 </p>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
                     <div style="background: white; padding: 15px; border-radius: 8px;">
                         <div style="font-size: 24px; margin-bottom: 5px;">📤 → 🔍</div>
                         <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">File Detection</div>
                         <div style="font-size: 12px; color: #6b7280;">
-                            Sensor checkt elke <strong>30 seconden</strong> op nieuwe uploads
+                            Sensor checkt elke <strong>30s</strong> op nieuwe uploads (MinIO/GCS)
                         </div>
                     </div>
                     <div style="background: white; padding: 15px; border-radius: 8px;">
                         <div style="font-size: 24px; margin-bottom: 5px;">⚙️ → 💾</div>
-                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Auto Processing</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Raw Processing</div>
                         <div style="font-size: 12px; color: #6b7280;">
-                            Automatisch naar raw tables (transactions/calls/messages)
+                            Auto naar raw tables (transactions/calls/messages)
                         </div>
                     </div>
                     <div style="background: white; padding: 15px; border-radius: 8px;">
                         <div style="font-size: 24px; margin-bottom: 5px;">🔄 → ✨</div>
-                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Canonical Mapping</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Canonical Layer</div>
                         <div style="font-size: 12px; color: #6b7280;">
-                            Sensor checkt elke <strong>60 seconden</strong> op unmapped data
+                            dbt sensor (<strong>60s</strong>) mapped clean data
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">📊 → ✨</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Staging Layer</div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            dbt models: stg_transactions, stg_communications
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">✨ → 🎯</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Analytical Layer</div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            dbt models: fact_financial_network, fact_communication_pattern
                         </div>
                     </div>
                     <div style="background: white; padding: 15px; border-radius: 8px;">
                         <div style="font-size: 24px; margin-bottom: 5px;">⏱️</div>
                         <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Totale Doorlooptijd</div>
                         <div style="font-size: 12px; color: #6b7280;">
-                            Upload → Canonical: <strong>~90 seconden</strong>
+                            Upload → Analytical: <strong>~2-3 minuten</strong>
                         </div>
                     </div>
                 </div>
@@ -887,12 +901,13 @@
 
         function getPipelineHTML(source) {
             const steps = [
-                { id: 'upload', label: 'Upload', icon: '📤', description: 'File to MinIO' },
-                { id: 'detect', label: 'Detect', icon: '�', description: 'Sensor (30s)' },
+                { id: 'upload', label: 'Upload', icon: '📤', description: 'File to MinIO/GCS' },
+                { id: 'detect', label: 'Detect', icon: '🔍', description: 'Sensor (30s)' },
                 { id: 'process', label: 'Process', icon: '⚙️', description: 'Raw tables' },
-                { id: 'map', label: 'Map', icon: '🔄', description: 'Sensor (60s)' },
-                { id: 'canonical', label: 'Canonical', icon: '✨', description: 'Auto-mapped' },
-                { id: 'complete', label: 'Complete', icon: '✓', description: 'Ready for dbt' }
+                { id: 'canonical', label: 'Canonical', icon: '🔄', description: 'dbt: clean_*' },
+                { id: 'staging', label: 'Staging', icon: '📊', description: 'dbt: stg_*' },
+                { id: 'analytical', label: 'Analytical', icon: '✨', description: 'dbt: fact_*' },
+                { id: 'complete', label: 'Complete', icon: '✓', description: 'Ready for analysis' }
             ];
 
             let currentStepIndex = 0;
@@ -906,9 +921,8 @@
                     currentStepIndex = 2; // Processing raw data
                     break;
                 case 'completed':
-                    // Check if canonical mapping is done (this would require additional status field)
-                    // For now assume it completes through to canonical
-                    currentStepIndex = 6; // Full pipeline complete
+                    // Full pipeline completes through all dbt stages
+                    currentStepIndex = 7; // Full pipeline complete (all 7 steps)
                     break;
                 case 'failed':
                     currentStepIndex = 2;
@@ -930,13 +944,13 @@
                     stepClass = 'current';
                 }
 
-                return `
-                    <div class="pipeline-step ${stepClass}" title="${step.description}">
-                        <div class="step-icon">${step.icon}</div>
-                        <div class="step-label">${step.label}</div>
-                        <div class="step-description">${step.description}</div>
+                return \`
+                    <div class="pipeline-step \${stepClass}" title="\${step.description}">
+                        <div class="step-icon">\${step.icon}</div>
+                        <div class="step-label">\${step.label}</div>
+                        <div class="step-description">\${step.description}</div>
                     </div>
-                `;
+                \`;
             }).join('');
 
             const uploadedAt = source.created_at ? new Date(source.created_at).toLocaleString('nl-NL', { 
@@ -953,43 +967,34 @@
                 minute: '2-digit' 
             }) : '-';
 
-            return `
+            return \`
                 <div class="pipeline-status">
                     <div class="pipeline-steps">
-                        ${stepsHTML}
+                        \${stepsHTML}
                     </div>
                     <div class="pipeline-details">
                         <div class="detail-item">
                             <span class="detail-label">Uploaded</span>
-                            <span class="detail-value">${uploadedAt}</span>
+                            <span class="detail-value">\${uploadedAt}</span>
                         </div>
-                        ${source.processing_completed_at ? `
+                        \${source.processing_completed_at ? \`
                             <div class="detail-item">
                                 <span class="detail-label">Processed</span>
-                                <span class="detail-value">${processedAt}</span>
+                                <span class="detail-value">\${processedAt}</span>
                             </div>
-                        ` : ''}
+                        \` : ''}
                         <div class="detail-item">
                             <span class="detail-label">Size</span>
-                            <span class="detail-value">${formatFileSize(source.file_size_bytes || 0)}</span>
+                            <span class="detail-value">\${formatFileSize(source.file_size_bytes || 0)}</span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Provider</span>
-                            <span class="detail-value">${source.provider || '-'}</span>
+                            <span class="detail-value">\${source.provider || '-'}</span>
                         </div>
                     </div>
                 </div>
-            `;
+            \`;
         }
-
-        async function loadProcessingStats() {
-            try {
-                const response = await fetch(`${API_BASE}/investigations/${investigationId}/files`);
-                const data = await response.json();
-                // API returns array directly, not wrapped in {files: [...]}
-                const sources = Array.isArray(data) ? data : (data.files || []);
-
-                const stats = {
                     total: sources.length,
                     pending: sources.filter(s => s.processing_status === 'pending').length,
                     processing: sources.filter(s => s.processing_status === 'processing').length,
