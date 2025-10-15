@@ -93,12 +93,17 @@ services:
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio12345
+      # Google Cloud Storage
+      GCS_BUCKET_NAME: public_data_demo
+      GCS_CREDENTIALS_PATH: /opt/dagster/gcs-credentials.json
+      GCS_PREFIX: investigations/
     ports:
       - "3000:3000"  # Dagster UI
       - "8011:8011"  # dbt docs
     volumes:
       - ./orchestration:/opt/dagster/app
       - ./dbt_investigations:/opt/dagster/dbt_investigations
+      - ./gcs-credentials.json:/opt/dagster/gcs-credentials.json:ro
     deploy:
       resources:
         limits:

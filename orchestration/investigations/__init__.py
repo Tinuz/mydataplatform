@@ -32,6 +32,7 @@ from . import analytics_assets
 from . import canonical_assets
 from . import dbt_assets
 from . import sensors
+from . import gcs_sensor
 from . import schedules
 from . import jobs
 from . import resources
@@ -47,6 +48,7 @@ defs = Definitions(
         sensors.check_canonical_data_sensor,
         sensors.check_staging_data_sensor,
         sensors.check_analytical_data_sensor,
+        gcs_sensor.gcs_bucket_monitor,
     ],
     schedules=[
         schedules.analytics_schedule,
