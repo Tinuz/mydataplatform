@@ -7,8 +7,10 @@ Simple @asset wrappers that execute dbt models via subprocess.
 from dagster import asset, AssetExecutionContext, Output
 import subprocess
 import json
+import uuid
 from pathlib import Path
 import time
+from .marquez_lineage import emit_dbt_model_lineage
 
 # Absolute path to dbt project in container
 DBT_PROJECT_DIR = "/opt/dagster/dbt_investigations"
@@ -80,13 +82,31 @@ def dbt_staging_models(context: AssetExecutionContext):
     - stg_telecom_calls
     - stg_telecom_messages
     """
+    run_id = str(uuid.uuid4())
     result = run_dbt_command(context, ["build", "--select", "tag:staging"], timeout=180)
+    
+    # Emit Marquez lineage for staging models
+    # Note: In production, you'd parse dbt manifest.json to get exact row counts
+    emit_dbt_model_lineage(
+        model_name="stg_transactions",
+        run_id=run_id,
+        canonical_sources=["canonical_transaction"],
+        records_processed=0  # Could parse from dbt logs
+    )
+    
+    emit_dbt_model_lineage(
+        model_name="stg_communications",
+        run_id=run_id,
+        canonical_sources=["canonical_communication"],
+        records_processed=0
+    )
     
     yield Output(
         value=None, 
         metadata={
             "elapsed_seconds": result["elapsed_seconds"],
-            "returncode": result["returncode"]
+            "returncode": result["returncode"],
+            "marquez_run_id": run_id
         }
     )
 
@@ -104,13 +124,30 @@ def dbt_canonical_models(context: AssetExecutionContext):
     - dim_bank_account, dim_phone_number
     - fact_transaction, fact_call, fact_message
     """
+    run_id = str(uuid.uuid4())
     result = run_dbt_command(context, ["build", "--select", "tag:canonical"], timeout=180)
+    
+    # Emit Marquez lineage for analytical models
+    emit_dbt_model_lineage(
+        model_name="fact_financial_network",
+        run_id=run_id,
+        canonical_sources=["stg_transactions"],
+        records_processed=0
+    )
+    
+    emit_dbt_model_lineage(
+        model_name="fact_communication_pattern",
+        run_id=run_id,
+        canonical_sources=["stg_communications"],
+        records_processed=0
+    )
     
     yield Output(
         value=None, 
         metadata={
             "elapsed_seconds": result["elapsed_seconds"],
-            "returncode": result["returncode"]
+            "returncode": result["returncode"],
+            "marquez_run_id": run_id
         }
     )
 

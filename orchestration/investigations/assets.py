@@ -19,6 +19,11 @@ import hashlib
 
 from .resources import PostgresResource, MinioResource
 from .file_detection import detect_file_type, validate_csv_structure
+from .marquez_lineage import (
+    emit_raw_lineage_start,
+    emit_raw_lineage_complete,
+    emit_raw_lineage_fail
+)
 
 logger = logging.getLogger(__name__)
 
@@ -458,8 +463,16 @@ def process_bank_transactions(
     for file_info in bank_files:
         source_id = file_info['source_id']
         investigation_id = file_info['investigation_id']
+        run_id = None  # Track Marquez run
         
         try:
+            # Emit Marquez lineage START event
+            run_id = emit_raw_lineage_start(
+                job_name="process_bank_transactions",
+                investigation_id=investigation_id,
+                file_path=file_info['file_name']
+            )
+            
             # Update status to processing
             postgres.update_source_status(
                 source_id=source_id,
@@ -562,6 +575,18 @@ def process_bank_transactions(
                 pipeline='bank_transaction_pipeline'
             )
             
+            # Emit Marquez lineage COMPLETE event
+            emit_raw_lineage_complete(
+                job_name="process_bank_transactions",
+                run_id=run_id,
+                investigation_id=investigation_id,
+                file_path=file_info['file_name'],
+                output_table="raw_transactions",
+                records_inserted=records_inserted,
+                records_failed=0,
+                provider=file_info.get('provider')
+            )
+            
             processed_count += 1
             context.log.info(
                 f"✅ Processed {source_id}: {record_count} transactions"
@@ -571,6 +596,14 @@ def process_bank_transactions(
             failed_count += 1
             error_msg = f"Error processing {source_id}: {str(e)}"
             context.log.error(error_msg)
+            
+            # Emit Marquez lineage FAIL event
+            if run_id:
+                emit_raw_lineage_fail(
+                    job_name="process_bank_transactions",
+                    run_id=run_id,
+                    error=error_msg
+                )
             
             # Try to save validation metadata even on failure
             try:
@@ -712,8 +745,16 @@ def process_telecom_calls(
     for file_info in call_files:
         source_id = file_info['source_id']
         investigation_id = file_info['investigation_id']
+        run_id = None  # Track Marquez run
         
         try:
+            # Emit Marquez lineage START event
+            run_id = emit_raw_lineage_start(
+                job_name="process_telecom_calls",
+                investigation_id=investigation_id,
+                file_path=file_info['file_name']
+            )
+            
             postgres.update_source_status(
                 source_id=source_id,
                 status='processing',
@@ -822,6 +863,19 @@ def process_telecom_calls(
                 pipeline='telecom_call_pipeline'
             )
             
+            # Emit Marquez lineage COMPLETE event
+            output_table = "raw_messages" if record_type == 'message' else "raw_calls"
+            emit_raw_lineage_complete(
+                job_name="process_telecom_calls",
+                run_id=run_id,
+                investigation_id=investigation_id,
+                file_path=file_info['file_name'],
+                output_table=output_table,
+                records_inserted=records_inserted,
+                records_failed=0,
+                provider=file_info.get('provider')
+            )
+            
             processed_count += 1
             context.log.info(f"✅ Processed {source_id}: {record_count} {record_type}s")
             
@@ -829,6 +883,14 @@ def process_telecom_calls(
             failed_count += 1
             error_msg = f"Error processing {source_id}: {str(e)}"
             context.log.error(error_msg)
+            
+            # Emit Marquez lineage FAIL event
+            if run_id:
+                emit_raw_lineage_fail(
+                    job_name="process_telecom_calls",
+                    run_id=run_id,
+                    error=error_msg
+                )
             
             # Try to save validation metadata even on failure
             try:

@@ -325,3 +325,236 @@ def emit_dbt_model_lineage(
             
     except Exception as e:
         print(f"⚠️  Marquez not available: {e}")
+
+
+# =============================================================================
+# RAW DATA LAYER LINEAGE FUNCTIONS
+# =============================================================================
+
+def emit_raw_lineage_start(job_name: str, investigation_id: str, file_path: str, run_id: Optional[str] = None) -> str:
+    """
+    Emit START event for raw data processing job
+    Returns run_id for tracking
+    """
+    if not run_id:
+        run_id = str(uuid.uuid4())
+    
+    try:
+        event = {
+            "eventType": "START",
+            "eventTime": datetime.utcnow().isoformat() + "Z",
+            "run": {
+                "runId": run_id
+            },
+            "job": {
+                "namespace": "investigations-raw",
+                "name": job_name,
+                "facets": {
+                    "documentation": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationJobFacet.json",
+                        "description": f"Process raw {job_name} from MinIO/GCS to PostgreSQL raw tables"
+                    },
+                    "sourceCodeLocation": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SourceCodeLocationJobFacet.json",
+                        "type": "git",
+                        "url": "https://github.com/Tinuz/mydataplatform",
+                        "path": "orchestration/investigations/assets.py"
+                    }
+                }
+            },
+            "inputs": [{
+                "namespace": "minio-storage",
+                "name": f"investigations/{investigation_id}/{file_path}",
+                "facets": {
+                    "dataSource": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DataSourceDatasetFacet.json",
+                        "name": "MinIO Object Storage",
+                        "uri": f"minio://investigations/{investigation_id}/{file_path}"
+                    },
+                    "storage": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json",
+                        "storageLayer": "object-storage",
+                        "fileFormat": "csv"
+                    }
+                }
+            }],
+            "outputs": [],
+            "producer": "dagster-investigations"
+        }
+        
+        response = requests.post(
+            f"{MARQUEZ_URL}/api/v1/lineage",
+            json=event,
+            timeout=5
+        )
+        
+        if response.status_code in [200, 201]:
+            print(f"✅ Marquez: Raw START event for {job_name}")
+        else:
+            print(f"⚠️  Marquez Raw START failed: {response.status_code}")
+            
+        return run_id
+        
+    except Exception as e:
+        print(f"⚠️  Marquez not available: {e}")
+        return run_id
+
+
+def emit_raw_lineage_complete(
+    job_name: str,
+    run_id: str,
+    investigation_id: str,
+    file_path: str,
+    output_table: str,
+    records_inserted: int,
+    records_failed: int = 0,
+    provider: Optional[str] = None
+):
+    """
+    Emit COMPLETE event for raw data processing with metrics
+    """
+    try:
+        # Input dataset (MinIO file)
+        input_datasets = [{
+            "namespace": "minio-storage",
+            "name": f"investigations/{investigation_id}/{file_path}",
+            "facets": {
+                "dataSource": {
+                    "_producer": "dagster-investigations",
+                    "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DataSourceDatasetFacet.json",
+                    "name": "MinIO Object Storage",
+                    "uri": f"minio://investigations/{investigation_id}/{file_path}"
+                }
+            },
+            "inputFacets": {
+                "dataQualityMetrics": {
+                    "_producer": "dagster-investigations",
+                    "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DataQualityMetricsInputDatasetFacet.json",
+                    "rowCount": records_inserted + records_failed,
+                    "columnMetrics": {}
+                }
+            }
+        }]
+        
+        # Output dataset (PostgreSQL raw table)
+        output_datasets = [{
+            "namespace": "postgresql-raw",
+            "name": f"raw.{output_table}",
+            "facets": {
+                "dataSource": {
+                    "_producer": "dagster-investigations",
+                    "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DataSourceDatasetFacet.json",
+                    "name": "PostgreSQL Raw Layer",
+                    "uri": f"postgresql://postgres:5432/superset?schema=raw&table={output_table}"
+                },
+                "documentation": {
+                    "_producer": "dagster-investigations",
+                    "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationDatasetFacet.json",
+                    "description": f"Raw {output_table} from {provider or 'unknown'} provider"
+                },
+                "schema": {
+                    "_producer": "dagster-investigations",
+                    "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json",
+                    "fields": []  # Could add column definitions here
+                }
+            },
+            "outputFacets": {
+                "outputStatistics": {
+                    "_producer": "dagster-investigations",
+                    "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OutputStatisticsOutputDatasetFacet.json",
+                    "rowCount": records_inserted,
+                    "size": records_inserted * 1024  # Rough estimate
+                }
+            }
+        }]
+        
+        event = {
+            "eventType": "COMPLETE",
+            "eventTime": datetime.utcnow().isoformat() + "Z",
+            "run": {
+                "runId": run_id,
+                "facets": {
+                    "processing_engine": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ProcessingEngineRunFacet.json",
+                        "version": "1.9.0",
+                        "name": "dagster"
+                    }
+                }
+            },
+            "job": {
+                "namespace": "investigations-raw",
+                "name": job_name,
+                "facets": {
+                    "documentation": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationJobFacet.json",
+                        "description": f"Processed {records_inserted} records from {provider or 'source'}"
+                    }
+                }
+            },
+            "inputs": input_datasets,
+            "outputs": output_datasets,
+            "producer": "dagster-investigations"
+        }
+        
+        response = requests.post(
+            f"{MARQUEZ_URL}/api/v1/lineage",
+            json=event,
+            timeout=5
+        )
+        
+        if response.status_code in [200, 201]:
+            print(f"✅ Marquez: Raw COMPLETE event for {job_name} ({records_inserted} records)")
+        else:
+            print(f"⚠️  Marquez Raw COMPLETE failed: {response.status_code}")
+            
+    except Exception as e:
+        print(f"⚠️  Marquez not available: {e}")
+
+
+def emit_raw_lineage_fail(job_name: str, run_id: str, error: str):
+    """
+    Emit FAIL event for raw data processing
+    """
+    try:
+        event = {
+            "eventType": "FAIL",
+            "eventTime": datetime.utcnow().isoformat() + "Z",
+            "run": {
+                "runId": run_id,
+                "facets": {
+                    "errorMessage": {
+                        "_producer": "dagster-investigations",
+                        "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ErrorMessageRunFacet.json",
+                        "message": error,
+                        "programmingLanguage": "python"
+                    }
+                }
+            },
+            "job": {
+                "namespace": "investigations-raw",
+                "name": job_name
+            },
+            "inputs": [],
+            "outputs": [],
+            "producer": "dagster-investigations"
+        }
+        
+        response = requests.post(
+            f"{MARQUEZ_URL}/api/v1/lineage",
+            json=event,
+            timeout=5
+        )
+        
+        if response.status_code in [200, 201]:
+            print(f"✅ Marquez: Raw FAIL event for {job_name}")
+        else:
+            print(f"⚠️  Marquez Raw FAIL event failed: {response.status_code}")
+            
+    except Exception as e:
+        print(f"⚠️  Marquez not available: {e}")
