@@ -944,13 +944,13 @@
                     stepClass = 'current';
                 }
 
-                return \`
-                    <div class="pipeline-step \${stepClass}" title="\${step.description}">
-                        <div class="step-icon">\${step.icon}</div>
-                        <div class="step-label">\${step.label}</div>
-                        <div class="step-description">\${step.description}</div>
+                return `
+                    <div class="pipeline-step ${stepClass}" title="${step.description}">
+                        <div class="step-icon">${step.icon}</div>
+                        <div class="step-label">${step.label}</div>
+                        <div class="step-description">${step.description}</div>
                     </div>
-                \`;
+                `;
             }).join('');
 
             const uploadedAt = source.created_at ? new Date(source.created_at).toLocaleString('nl-NL', { 
@@ -967,34 +967,43 @@
                 minute: '2-digit' 
             }) : '-';
 
-            return \`
+            return `
                 <div class="pipeline-status">
                     <div class="pipeline-steps">
-                        \${stepsHTML}
+                        ${stepsHTML}
                     </div>
                     <div class="pipeline-details">
                         <div class="detail-item">
                             <span class="detail-label">Uploaded</span>
-                            <span class="detail-value">\${uploadedAt}</span>
+                            <span class="detail-value">${uploadedAt}</span>
                         </div>
-                        \${source.processing_completed_at ? \`
+                        ${source.processing_completed_at ? `
                             <div class="detail-item">
                                 <span class="detail-label">Processed</span>
-                                <span class="detail-value">\${processedAt}</span>
+                                <span class="detail-value">${processedAt}</span>
                             </div>
-                        \` : ''}
+                        ` : ''}
                         <div class="detail-item">
                             <span class="detail-label">Size</span>
-                            <span class="detail-value">\${formatFileSize(source.file_size_bytes || 0)}</span>
+                            <span class="detail-value">${formatFileSize(source.file_size_bytes || 0)}</span>
                         </div>
                         <div class="detail-item">
                             <span class="detail-label">Provider</span>
-                            <span class="detail-value">\${source.provider || '-'}</span>
+                            <span class="detail-value">${source.provider || '-'}</span>
                         </div>
                     </div>
                 </div>
-            \`;
+            `;
         }
+
+        async function loadProcessingStats() {
+            try {
+                const response = await fetch(`${API_BASE}/investigations/${investigationId}/files`);
+                const data = await response.json();
+                // API returns array directly, not wrapped in {files: [...]}
+                const sources = Array.isArray(data) ? data : (data.files || []);
+
+                const stats = {
                     total: sources.length,
                     pending: sources.filter(s => s.processing_status === 'pending').length,
                     processing: sources.filter(s => s.processing_status === 'processing').length,
