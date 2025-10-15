@@ -3,6 +3,10 @@
 # Platform Cleanup Script
 # This script removes ALL test data from the platform to prepare for a clean demo
 # Use this before starting a fresh demonstration
+#
+# Usage:
+#   ./cleanup_platform.sh         - Interactive mode (requires confirmation)
+#   ./cleanup_platform.sh --force - Skip confirmation prompt
 
 set -e  # Exit on error
 
@@ -19,10 +23,18 @@ echo "  - All canonical data (canonical_transaction, canonical_communication)"
 echo "  - All MinIO files (investigations bucket)"
 echo "  - All dbt staging data will be regenerated on next run"
 echo ""
-read -p "Are you sure you want to continue? Type 'DELETE ALL' to confirm: " CONFIRM
+
+# Check for --force flag
+if [ "$1" = "--force" ]; then
+    echo "🚀 Force mode enabled - skipping confirmation"
+    CONFIRM="DELETE ALL"
+else
+    read -p "Are you sure you want to continue? Type 'DELETE ALL' to confirm: " CONFIRM
+fi
 
 if [ "$CONFIRM" != "DELETE ALL" ]; then
-    echo "Operation cancelled."
+    echo "Operation cancelled. You typed: '$CONFIRM'"
+    echo "Expected: 'DELETE ALL' (case sensitive)"
     exit 0
 fi
 
@@ -40,27 +52,29 @@ echo "User: $DB_USER"
 echo ""
 
 # Get counts before cleanup
-echo "[1/5] Checking current data counts..."
-BEFORE_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t <<EOF
+echo "[1/6] Checking current data counts..."
+BEFORE_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t -A -F'|' -c "
 SELECT 
-    (SELECT COUNT(*) FROM investigations) as investigations,
-    (SELECT COUNT(*) FROM data_sources) as data_sources,
-    (SELECT COUNT(*) FROM raw_transactions) as raw_transactions,
-    (SELECT COUNT(*) FROM raw_calls) as raw_calls,
-    (SELECT COUNT(*) FROM raw_messages) as raw_messages,
-    (SELECT COUNT(*) FROM canonical.canonical_transaction) as canonical_transactions,
-    (SELECT COUNT(*) FROM canonical.canonical_communication) as canonical_communications;
-EOF
-)
+    (SELECT COUNT(*) FROM investigations),
+    (SELECT COUNT(*) FROM data_sources),
+    (SELECT COUNT(*) FROM raw_transactions),
+    (SELECT COUNT(*) FROM raw_calls),
+    (SELECT COUNT(*) FROM raw_messages),
+    (SELECT COUNT(*) FROM canonical.canonical_transaction),
+    (SELECT COUNT(*) FROM canonical.canonical_communication);
+")
+
+# Parse counts using IFS
+IFS='|' read -r INV_COUNT DS_COUNT RAW_TX_COUNT RAW_CALL_COUNT RAW_MSG_COUNT CAN_TX_COUNT CAN_COMM_COUNT <<< "$BEFORE_COUNTS"
 
 echo "Current data:"
-echo "  - Investigations: $(echo $BEFORE_COUNTS | awk '{print $1}')"
-echo "  - Data sources: $(echo $BEFORE_COUNTS | awk '{print $3}')"
-echo "  - Raw transactions: $(echo $BEFORE_COUNTS | awk '{print $5}')"
-echo "  - Raw calls: $(echo $BEFORE_COUNTS | awk '{print $7}')"
-echo "  - Raw messages: $(echo $BEFORE_COUNTS | awk '{print $9}')"
-echo "  - Canonical transactions: $(echo $BEFORE_COUNTS | awk '{print $11}')"
-echo "  - Canonical communications: $(echo $BEFORE_COUNTS | awk '{print $13}')"
+echo "  - Investigations: $INV_COUNT"
+echo "  - Data sources: $DS_COUNT"
+echo "  - Raw transactions: $RAW_TX_COUNT"
+echo "  - Raw calls: $RAW_CALL_COUNT"
+echo "  - Raw messages: $RAW_MSG_COUNT"
+echo "  - Canonical transactions: $CAN_TX_COUNT"
+echo "  - Canonical communications: $CAN_COMM_COUNT"
 echo ""
 
 # Step 2: Delete canonical data
@@ -124,19 +138,22 @@ echo ""
 
 # Step 6: Verify cleanup
 echo "[6/6] Verifying cleanup..."
-AFTER_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t <<EOF
+AFTER_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t -A -F'|' -c "
 SELECT 
-    (SELECT COUNT(*) FROM investigations) as investigations,
-    (SELECT COUNT(*) FROM data_sources) as data_sources,
-    (SELECT COUNT(*) FROM raw_transactions) as raw_transactions,
-    (SELECT COUNT(*) FROM raw_calls) as raw_calls,
-    (SELECT COUNT(*) FROM raw_messages) as raw_messages,
-    (SELECT COUNT(*) FROM canonical.canonical_transaction) as canonical_transactions,
-    (SELECT COUNT(*) FROM canonical.canonical_communication) as canonical_communications;
-EOF
-)
+    (SELECT COUNT(*) FROM investigations),
+    (SELECT COUNT(*) FROM data_sources),
+    (SELECT COUNT(*) FROM raw_transactions),
+    (SELECT COUNT(*) FROM raw_calls),
+    (SELECT COUNT(*) FROM raw_messages),
+    (SELECT COUNT(*) FROM canonical.canonical_transaction),
+    (SELECT COUNT(*) FROM canonical.canonical_communication);
+")
 
-TOTAL_REMAINING=$(echo $AFTER_COUNTS | awk '{print $1 + $3 + $5 + $7 + $9 + $11 + $13}')
+# Parse after counts
+IFS='|' read -r AFTER_INV AFTER_DS AFTER_RAW_TX AFTER_RAW_CALL AFTER_RAW_MSG AFTER_CAN_TX AFTER_CAN_COMM <<< "$AFTER_COUNTS"
+
+# Calculate total remaining
+TOTAL_REMAINING=$((AFTER_INV + AFTER_DS + AFTER_RAW_TX + AFTER_RAW_CALL + AFTER_RAW_MSG + AFTER_CAN_TX + AFTER_CAN_COMM))
 
 if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "✓ All data successfully removed"
@@ -145,13 +162,13 @@ if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "Cleanup Summary"
     echo "=========================================="
     echo "Database cleanup:"
-    echo "  - Investigations: $(echo $BEFORE_COUNTS | awk '{print $1}') → 0"
-    echo "  - Data sources: $(echo $BEFORE_COUNTS | awk '{print $3}') → 0"
-    echo "  - Raw transactions: $(echo $BEFORE_COUNTS | awk '{print $5}') → 0"
-    echo "  - Raw calls: $(echo $BEFORE_COUNTS | awk '{print $7}') → 0"
-    echo "  - Raw messages: $(echo $BEFORE_COUNTS | awk '{print $9}') → 0"
-    echo "  - Canonical transactions: $(echo $BEFORE_COUNTS | awk '{print $11}') → 0"
-    echo "  - Canonical communications: $(echo $BEFORE_COUNTS | awk '{print $13}') → 0"
+    echo "  - Investigations: $INV_COUNT → 0"
+    echo "  - Data sources: $DS_COUNT → 0"
+    echo "  - Raw transactions: $RAW_TX_COUNT → 0"
+    echo "  - Raw calls: $RAW_CALL_COUNT → 0"
+    echo "  - Raw messages: $RAW_MSG_COUNT → 0"
+    echo "  - Canonical transactions: $CAN_TX_COUNT → 0"
+    echo "  - Canonical communications: $CAN_COMM_COUNT → 0"
     echo ""
     echo "MinIO cleanup:"
     if [[ "$MINIO_FILES" =~ ^[0-9]+$ ]]; then
@@ -194,13 +211,13 @@ if [ "$TOTAL_REMAINING" = "0" ]; then
 else
     echo "⚠️  WARNING: $TOTAL_REMAINING records still remain"
     echo "Current state:"
-    echo "  - Investigations: $(echo $AFTER_COUNTS | awk '{print $1}')"
-    echo "  - Data sources: $(echo $AFTER_COUNTS | awk '{print $3}')"
-    echo "  - Raw transactions: $(echo $AFTER_COUNTS | awk '{print $5}')"
-    echo "  - Raw calls: $(echo $AFTER_COUNTS | awk '{print $7}')"
-    echo "  - Raw messages: $(echo $AFTER_COUNTS | awk '{print $9}')"
-    echo "  - Canonical transactions: $(echo $AFTER_COUNTS | awk '{print $11}')"
-    echo "  - Canonical communications: $(echo $AFTER_COUNTS | awk '{print $13}')"
+    echo "  - Investigations: $AFTER_INV"
+    echo "  - Data sources: $AFTER_DS"
+    echo "  - Raw transactions: $AFTER_RAW_TX"
+    echo "  - Raw calls: $AFTER_RAW_CALL"
+    echo "  - Raw messages: $AFTER_RAW_MSG"
+    echo "  - Canonical transactions: $AFTER_CAN_TX"
+    echo "  - Canonical communications: $AFTER_CAN_COMM"
     echo ""
     echo "Manual cleanup may be required."
     exit 1
