@@ -1,0 +1,23 @@
+investigations:
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'postgres') }}"
+      port: "{{ env_var('DB_PORT', '5432') | int }}"
+      user: "{{ env_var('DB_USER', 'superset') }}"
+      password: "{{ env_var('DB_PASSWORD', 'superset') }}"
+      dbname: "{{ env_var('DB_NAME', 'superset') }}"
+      schema: canonical
+      threads: 4
+    
+    prod:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'postgres') }}"
+      port: "{{ env_var('DB_PORT', '5432') | int }}"
+      user: "{{ env_var('DB_USER', 'investigations') }}"
+      password: "{{ env_var('DB_PASSWORD', 'investigations_pass') }}"
+      dbname: investigations
+      schema: canonical
+      threads: 4
+  
+  target: dev

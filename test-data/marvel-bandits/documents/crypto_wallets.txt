@@ -1,0 +1,115 @@
+=== CRYPTOCURRENCY WALLET INTELLIGENCE ===
+Investigation: OND-2025-MARVEL
+Date: June 26, 2024
+Source: Blockchain Analysis Unit
+
+=== BITCOIN WALLETS ===
+
+Primary Wallet (Tony Stark):
+Address: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+Balance: 12.45 BTC (~€485,000)
+First Transaction: 2024-06-03
+Last Transaction: 2024-06-25
+Total Inflows: 18.7 BTC
+Total Outflows: 6.25 BTC
+Mixing Services Used: Yes (Wasabi Wallet)
+
+Secondary Wallet (Peter Parker):
+Address: 1BoatSLRHtKNngkdXEeobR76b53LETtpyT
+Balance: 4.32 BTC (~€168,000)
+First Transaction: 2024-06-08
+Connected Wallets: 3 intermediate addresses
+Tumbler Activity: Detected
+
+Tertiary Wallet (Natasha Romanoff):
+Address: 3J98t1WpEZ73CNmYviecrnyiWrnqRhWNLy
+Balance: 2.87 BTC (~€112,000)
+Purpose: Distribution wallet
+Connected Exchanges: Binance, Kraken, LocalBitcoins
+
+=== ETHEREUM WALLETS ===
+
+Primary ETH Wallet:
+Address: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
+Balance: 287.5 ETH (~€520,000)
+Smart Contracts: 12 interactions
+DeFi Protocols: Uniswap, Aave, Compound
+Last Activity: 2024-06-24
+
+Secondary ETH Wallet:
+Address: 0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B
+Balance: 143.2 ETH (~€258,000)
+NFT Holdings: 8 items (potential value storage)
+Token Swaps: 34 transactions
+
+=== ALTCOIN HOLDINGS ===
+
+Ripple (XRP):
+Wallet: rN7n7otQDd6FczFgLdlqtyMVrn3WkhjfFh
+Holdings: 125,000 XRP (~€58,000)
+Exchange: Bitstamp
+
+Cardano (ADA):
+Wallet: addr1qxy2lpan99fcnq...
+Holdings: 285,000 ADA (~€82,000)
+Staking: Active
+
+Polkadot (DOT):
+Wallet: 15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5
+Holdings: 12,500 DOT (~€68,000)
+Parachain: Moonbeam
+
+=== EXCHANGE ACCOUNTS ===
+
+Crypto Exchange BV (Netherlands):
+IBAN: NL02BUNQ0987654321
+Total Deposits (June 2024): €45,600
+Withdrawal Methods: Multiple crypto addresses
+KYC Status: Verified (all suspects)
+
+=== TRANSACTION PATTERNS ===
+
+Pattern 1: Rapid Distribution
+- Bank transfer to exchange
+- Immediate crypto purchase
+- Distribution across 5-8 wallets within 24 hours
+- Final consolidation after 7 days
+
+Pattern 2: Mixing Services
+- Primary deposit to tumbler
+- Split into 15-20 micro-transactions
+- Recombination at clean addresses
+- Average mixing time: 3-5 days
+
+Pattern 3: Cross-Chain Bridging
+- BTC → ETH via RenBridge
+- ETH → XRP via AnySwap
+- Final conversion back to EUR via P2P
+
+=== BLOCKCHAIN FORENSICS ===
+
+Total Cryptocurrency Value: ~€1,751,000
+Origin Funds: Bank transfers (traced)
+Destination: Multiple jurisdictions
+Privacy Techniques: Mixing, tumblers, multiple hops
+Risk Score: CRITICAL (95/100)
+
+=== LINKED EXCHANGES ===
+1. Binance (International)
+2. Kraken (USA/Europe)
+3. Bitstamp (Luxembourg)
+4. LocalBitcoins (P2P)
+5. Crypto Exchange BV (Netherlands) - Primary
+
+=== INVESTIGATIVE NOTES ===
+- Sophisticated money laundering operation
+- Multi-currency obfuscation
+- Professional-grade OPSEC
+- Estimated total laundered: €450,000+
+- Blockchain evidence: Irrefutable
+- Seizure warrants: Prepared
+
+Analyst: Crypto Forensics Unit
+Classification: TOP SECRET
+Evidence Chain: Secured
+Court Ready: YES

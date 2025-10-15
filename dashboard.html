@@ -285,6 +285,7 @@
         .card-minio { --card-color: #ef4444; --card-color-light: #f87171; }
         .card-kong { --card-color: #14b8a6; --card-color-light: #2dd4bf; }
         .card-konga { --card-color: #6366f1; --card-color-light: #818cf8; }
+        .card-dbt { --card-color: #f97316; --card-color-light: #fb923c; }
 
         .section {
             margin-bottom: 56px;
@@ -468,16 +469,16 @@
         <!-- Stats Overview -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value">10+</div>
+                <div class="stat-value">11+</div>
                 <div class="stat-label">Services</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">47K+</div>
-                <div class="stat-label">Cell Towers</div>
+                <div class="stat-value">145</div>
+                <div class="stat-label">Canonical Records</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">2K+</div>
-                <div class="stat-label">Crypto Trades</div>
+                <div class="stat-value">82%</div>
+                <div class="stat-label">Data Quality</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">100%</div>
@@ -504,9 +505,21 @@
                     </div>
                 </a>
 
-                <a href="http://localhost:8000/docs" class="card card-api" target="_blank">
+                <a href="http://localhost:8011" class="card card-dbt" target="_blank">
                     <div class="card-header">
                         <span class="card-icon">📚</span>
+                        <h3 class="card-title">dbt Documentation</h3>
+                    </div>
+                    <p class="card-description">Interactive dbt docs voor canonical data model. Bekijk ERD, column descriptions, data lineage en test results.</p>
+                    <div class="card-footer">
+                        <span class="card-port">:8011</span>
+                        <span class="card-badge">Data Catalog</span>
+                    </div>
+                </a>
+
+                <a href="http://localhost:8000/docs" class="card card-api" target="_blank">
+                    <div class="card-header">
+                        <span class="card-icon">🌐</span>
                         <h3 class="card-title">API Documentation</h3>
                     </div>
                     <p class="card-description">Interactive OpenAPI/Swagger docs voor Weather API. Test endpoints direct in je browser met authentication.</p>
@@ -518,7 +531,7 @@
 
                 <a href="http://localhost:8000/api/v1/weather/observations/latest" class="card card-api" target="_blank">
                     <div class="card-header">
-                        <span class="card-icon">🌐</span>
+                        <span class="card-icon">🔗</span>
                         <h3 class="card-title">Weather API</h3>
                     </div>
                     <p class="card-description">RESTful API voor real-time weather data met rate limiting, authentication en comprehensive error handling.</p>
@@ -643,14 +656,23 @@
             <a href="https://github.com/Tinuz/mydataplatform" class="quick-link" target="_blank">
                 📦 GitHub Repository
             </a>
+            <a href="CANONICAL_DATA_STEWARD_GUIDE.md" class="quick-link">
+                📚 Canonical Data Model Guide
+            </a>
+            <a href="CANONICAL_ERD.md" class="quick-link">
+                🔍 Canonical ERD & Diagrams
+            </a>
+            <a href="MARQUEZ_LINEAGE_INTEGRATION.md" class="quick-link">
+                🔗 Marquez Lineage Integration
+            </a>
             <a href="docs/README.md" class="quick-link">
-                � Documentation
+                📖 Documentation
             </a>
             <a href="docs/QUICK_REFERENCE.md" class="quick-link">
                 ⚡ Quick Reference
             </a>
             <a href="docs/SUPERSET_PROBLEM_SOLVED.md" class="quick-link">
-                � Superset Guide
+                💡 Superset Guide
             </a>
             <a href="scripts/health_check.sh" class="quick-link">
                 🏥 Health Check
@@ -661,25 +683,25 @@
         <footer>
             <div class="footer-title">🚀 Modern Data Platform</div>
             <p class="footer-text">
-                Complete data platform met streaming, lakehouse, visualization en governance<br>
-                Gebouwd met Dagster, Superset, DuckDB, PostgreSQL, MinIO, Kafka, Iceberg en meer
+                Complete data platform met canonical integration layer, streaming, lakehouse, visualization en governance<br>
+                Gebouwd met Dagster, dbt, Superset, PostgreSQL, MinIO en meer
             </p>
             <div class="footer-badges">
                 <span class="footer-badge">
                     <span>✅</span> All Services Online
                 </span>
                 <span class="footer-badge">
-                    <span>📊</span> 47K+ Cell Towers
+                    <span>📊</span> 145 Canonical Records
                 </span>
                 <span class="footer-badge">
-                    <span>💰</span> Crypto Streaming
+                    <span>🎯</span> 82% Data Quality
                 </span>
                 <span class="footer-badge">
                     <span>🔄</span> Real-time Pipelines
                 </span>
             </div>
             <p style="margin-top: 20px; font-size: 0.8rem; color: #6b7280;">
-                Last updated: October 2025 | Version 2.0
+                Last updated: 15 oktober 2025 | Version 2.1 - Canonical Integration
             </p>
         </footer>
     </div>
@@ -776,7 +798,7 @@
         // Console welcome message
         console.log('%c🚀 Data Platform Dashboard', 'font-size: 20px; font-weight: bold; color: #6366f1;');
         console.log('%cWelcome to the Modern Data Platform!', 'font-size: 14px; color: #9ca3af;');
-        console.log('%c10+ services running | Built with ❤️', 'font-size: 12px; color: #6b7280;');
+        console.log('%c11+ services running | 145 canonical records | Built with ❤️', 'font-size: 12px; color: #6b7280;');
     </script>
 </body>
 </html>

@@ -1,0 +1,105 @@
+version: 2
+
+models:
+  - name: dim_bank_account
+    description: Bank accounts dimension table
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: account_key
+        data_type: varchar
+        description: Surrogate key
+      - name: iban
+        data_type: varchar
+        description: International Bank Account Number
+
+  - name: dim_phone_number
+    description: Phone numbers dimension table
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: phone_key
+        data_type: varchar
+        description: Surrogate key
+      - name: phone_number
+        data_type: varchar
+        description: Normalized phone number
+
+  - name: fact_transaction
+    description: Transaction facts table
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: transaction_id
+        data_type: varchar
+        description: Unique transaction identifier
+        tests:
+          - unique
+          - not_null
+      - name: amount
+        data_type: numeric
+        description: Transaction amount
+        tests:
+          - not_null
+
+  - name: fact_call
+    description: Call records fact table
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: call_id
+        data_type: uuid
+        description: Unique call identifier
+        tests:
+          - unique
+          - not_null
+      - name: investigation_id
+        data_type: varchar
+        description: Investigation reference
+        tests:
+          - not_null
+      - name: duration_seconds
+        data_type: integer
+        description: Call duration in seconds
+      - name: call_direction
+        data_type: varchar
+        description: Call direction (inbound/outbound/missed)
+        tests:
+          - accepted_values:
+              values: ['inbound', 'outbound', 'missed', 'unknown']
+
+  - name: fact_message
+    description: Message/SMS fact table
+    config:
+      contract:
+        enforced: false
+      materialized: table
+    columns:
+      - name: message_id
+        data_type: uuid
+        description: Unique message identifier
+        tests:
+          - unique
+          - not_null
+      - name: investigation_id
+        data_type: varchar
+        description: Investigation reference
+        tests:
+          - not_null
+      - name: message_length
+        data_type: integer
+        description: Length of message text
+      - name: message_direction
+        data_type: varchar
+        description: Message direction (inbound/outbound)
+        tests:
+          - accepted_values:
+              values: ['inbound', 'outbound', 'unknown']

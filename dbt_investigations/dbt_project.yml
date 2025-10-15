@@ -1,0 +1,43 @@
+name: 'investigations'
+version: '1.0.0'
+config-version: 2
+
+profile: 'investigations'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  investigations:
+    # Staging models - raw data cleaning
+    staging:
+      +materialized: view
+      +schema: staging
+      
+    # Canonical models - standardized entities
+    canonical:
+      +materialized: table
+      +schema: canonical
+      +tags: ["canonical"]
+      
+      # Data contracts enforcement
+      +contract:
+        enforced: true
+
+# Test configurations
+tests:
+  +store_failures: true
+  +schema: test_failures
+
+# Seeds configuration
+seeds:
+  +schema: seeds

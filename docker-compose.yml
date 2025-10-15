@@ -94,9 +94,11 @@ services:
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio12345
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Dagster UI
+      - "8011:8011"  # dbt docs
     volumes:
       - ./orchestration:/opt/dagster/app
+      - ./dbt_investigations:/opt/dagster/dbt_investigations
     deploy:
       resources:
         limits:

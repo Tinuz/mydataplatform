@@ -69,3 +69,27 @@ analytics_job = define_asset_job(
     tags={"team": "investigations", "type": "analytics"},
     hooks={analytics_success_hook, analytics_failure_hook}
 )
+
+# Canonical mapping job - maps raw data to canonical schema
+canonical_mapping_job = define_asset_job(
+    name="canonical_mapping_job",
+    selection=AssetSelection.groups("investigations_canonical"),
+    description="Automatically map raw data to canonical schema",
+    tags={"team": "investigations", "type": "canonical", "automated": "true"}
+)
+
+# Staging models job - runs dbt staging models
+staging_models_job = define_asset_job(
+    name="staging_models_job",
+    selection=AssetSelection.groups("investigations_staging"),
+    description="Automatically build dbt staging models from canonical data",
+    tags={"team": "investigations", "type": "staging", "automated": "true"}
+)
+
+# Analytical models job - runs dbt canonical models
+analytical_models_job = define_asset_job(
+    name="analytical_models_job",
+    selection=AssetSelection.groups("investigations_analytical"),
+    description="Automatically build analytical models (dimensions and facts) from staging data",
+    tags={"team": "investigations", "type": "analytical", "automated": "true"}
+)

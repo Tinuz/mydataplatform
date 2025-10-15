@@ -1,0 +1,443 @@
+version: 2
+
+sources:
+  - name: canonical
+    description: >
+      Canonical integration layer - semantically consistent, validated data.
+      This layer enforces cross-system consistency and data quality standards.
+      Only records with validation_status IN ('valid', 'warning') should be used.
+    
+    schema: canonical
+    
+    tables:
+      - name: canonical_transaction
+        description: >
+          **Unified financial transactions from all source systems**
+          
+          This table provides a semantically consistent view of all financial transactions,
+          regardless of source system. All IBANs are normalized, dates are standardized,
+          and validation ensures data quality before downstream consumption.
+          
+          **Data Quality**: Only use records with validation_status IN ('valid', 'warning')
+        
+        columns:
+          - name: canonical_transaction_id
+            description: Unique canonical transaction ID (UUID)
+            tests:
+              - unique
+              - not_null
+          
+          - name: source_system_id
+            description: Source system identifier (e.g., 'bank_a', 'bank_b')
+            tests:
+              - not_null
+          
+          - name: source_record_id
+            description: Original record ID in source system for traceability
+            tests:
+              - not_null
+          
+          - name: investigation_id
+            description: Reference to investigation (e.g., 'OND-2025-000002')
+            tests:
+              - not_null
+          
+          - name: transaction_datetime
+            description: Transaction timestamp (standardized across all sources)
+            tests:
+              - not_null
+          
+          - name: amount
+            description: Transaction amount in decimal format (can be NULL for ATM transactions)
+          
+          - name: currency_code
+            description: ISO 4217 currency code (e.g., 'EUR', 'USD')
+            tests:
+              - not_null
+          
+          - name: debtor_account_id
+            description: Debtor IBAN (normalized, uppercase, no spaces)
+          
+          - name: debtor_name
+            description: Debtor account holder name
+          
+          - name: creditor_account_id
+            description: Creditor IBAN (normalized, uppercase, no spaces)
+          
+          - name: creditor_name
+            description: Creditor account holder name
+          
+          - name: transaction_type
+            description: Standardized transaction type (debit/credit/transfer/payment/withdrawal/deposit/fee/interest/other)
+          
+          - name: description
+            description: Transaction description/reference
+          
+          - name: validation_status
+            description: >
+              Data quality status:
+              - valid: Passes all validation rules
+              - warning: Passes core rules but has data quality issues
+              - error: Failed critical validation rules
+            tests:
+              - accepted_values:
+                  values: ['valid', 'warning', 'error', 'pending']
+          
+          - name: data_completeness_score
+            description: Percentage of non-null fields (0-100)
+          
+          - name: source_raw_data
+            description: Complete original raw data as JSONB for audit trail
+      
+      - name: canonical_communication
+        description: >
+          **Unified communications (calls + SMS) from all source systems**
+          
+          This table provides a semantically consistent view of all communications,
+          with phone numbers normalized to E.164 format and timestamps standardized.
+          
+          **Data Quality**: Only use records with validation_status IN ('valid', 'warning')
+        
+        columns:
+          - name: canonical_communication_id
+            description: Unique canonical communication ID (UUID)
+            tests:
+              - unique
+              - not_null
+          
+          - name: source_system_id
+            description: Source system identifier (e.g., 'telecom_a')
+            tests:
+              - not_null
+          
+          - name: source_record_id
+            description: Original record ID in source system for traceability
+            tests:
+              - not_null
+          
+          - name: investigation_id
+            description: Reference to investigation (e.g., 'OND-2025-000002')
+            tests:
+              - not_null
+          
+          - name: communication_type
+            description: Type of communication (call/sms/email)
+            tests:
+              - accepted_values:
+                  values: ['call', 'sms', 'email']
+              - not_null
+          
+          - name: communication_datetime
+            description: Communication timestamp (standardized across all sources)
+            tests:
+              - not_null
+          
+          - name: duration_seconds
+            description: Call duration in seconds (NULL for SMS)
+          
+          - name: originator_id
+            description: Caller/sender phone number (E.164 format, e.g., +31612345678)
+            tests:
+              - not_null
+          
+          - name: originator_type
+            description: Type of originator (mobile/landline/shortcode/unknown)
+            tests:
+              - not_null
+          
+          - name: originator_name
+            description: Caller/sender name (if available)
+          
+          - name: recipient_id
+            description: Called/recipient phone number (E.164 format)
+            tests:
+              - not_null
+          
+          - name: recipient_type
+            description: Type of recipient (mobile/landline/shortcode/unknown)
+            tests:
+              - not_null
+          
+          - name: recipient_name
+            description: Called/recipient name (if available)
+          
+          - name: direction
+            description: Communication direction (inbound/outbound/unknown)
+          
+          - name: call_status
+            description: Call outcome (answered/missed/busy/failed/unknown)
+          
+          - name: message_content
+            description: SMS message text (NULL for calls, may be redacted for privacy)
+          
+          - name: network_operator
+            description: Telecom network operator
+          
+          - name: validation_status
+            description: >
+              Data quality status:
+              - valid: Passes all validation rules
+              - warning: Passes core rules but has data quality issues (e.g., missing content)
+              - error: Failed critical validation rules
+            tests:
+              - accepted_values:
+                  values: ['valid', 'warning', 'error', 'pending']
+          
+          - name: source_raw_data
+            description: Complete original raw data as JSONB for audit trail
+
+  - name: investigations_raw
+    description: >
+      Raw data from the investigations PostgreSQL database.
+      This is the staging layer that reads directly from raw detail tables
+      (raw_transactions, raw_calls, raw_messages) and prepares data for 
+      canonical transformation.
+    
+    schema: public
+    
+    tables:
+      - name: raw_transactions
+        description: Raw bank transaction detail records
+        columns:
+          - name: transaction_id
+            description: Unique transaction identifier (UUID)
+            tests:
+              - unique
+              - not_null
+          
+          - name: investigation_id
+            description: Reference to investigation
+            tests:
+              - not_null
+          
+          - name: source_id
+            description: Reference to data source file
+            tests:
+              - not_null
+          
+          - name: iban_from
+            description: Source IBAN account number
+          
+          - name: iban_to
+            description: Destination IBAN account number (tegenrekening)
+          
+          - name: bedrag
+            description: Transaction amount
+          
+          - name: datum
+            description: Transaction date
+          
+          - name: omschrijving
+            description: Transaction description
+          
+          - name: raw_data
+            description: Full raw data as JSONB
+          
+          - name: created_at
+            description: When record was created
+      
+      - name: raw_calls
+        description: Raw telecom call detail records
+        columns:
+          - name: call_id
+            description: Unique call identifier (UUID)
+            tests:
+              - unique
+              - not_null
+          
+          - name: investigation_id
+            description: Reference to investigation
+            tests:
+              - not_null
+          
+          - name: source_id
+            description: Reference to data source file
+            tests:
+              - not_null
+          
+          - name: caller_number
+            description: Calling phone number
+          
+          - name: called_number
+            description: Called phone number
+          
+          - name: call_date
+            description: Date of call
+          
+          - name: call_time
+            description: Time of call
+          
+          - name: duration_seconds
+            description: Call duration in seconds
+          
+          - name: call_type
+            description: Type of call (incoming, outgoing, etc.)
+          
+          - name: raw_data
+            description: Full raw data as JSONB
+          
+          - name: created_at
+            description: When record was created
+      
+      - name: raw_messages
+        description: Raw telecom message/SMS detail records
+        columns:
+          - name: message_id
+            description: Unique message identifier (UUID)
+            tests:
+              - unique
+              - not_null
+          
+          - name: investigation_id
+            description: Reference to investigation
+            tests:
+              - not_null
+          
+          - name: source_id
+            description: Reference to data source file
+            tests:
+              - not_null
+          
+          - name: sender_number
+            description: Sender phone number
+          
+          - name: recipient_number
+            description: Recipient phone number
+          
+          - name: message_date
+            description: Date of message
+          
+          - name: message_time
+            description: Time of message
+          
+          - name: message_text
+            description: Message content/text
+          
+          - name: message_type
+            description: Type of message (sms, mms, etc.)
+          
+          - name: raw_data
+            description: Full raw data as JSONB
+          
+          - name: created_at
+            description: When record was created
+
+models:
+  - name: stg_bank_transactions
+    description: >
+      Staging model for bank transactions. Cleans and normalizes
+      bank transaction data from raw_transactions table.
+    
+    config:
+      materialized: view
+      tags: ["staging", "financial"]
+    
+    columns:
+      - name: transaction_id
+        description: Primary key from raw_transactions
+        tests:
+          - unique
+          - not_null
+      
+      - name: investigation_id
+        description: Investigation reference
+        tests:
+          - not_null
+      
+      - name: source_id
+        description: Source file reference
+        tests:
+          - not_null
+      
+      - name: iban_from
+        description: Source IBAN (cleaned)
+      
+      - name: iban_to
+        description: Destination IBAN (cleaned)
+      
+      - name: bedrag
+        description: Transaction amount
+        tests:
+          - not_null
+      
+      - name: datum
+        description: Transaction date
+        tests:
+          - not_null
+      
+      - name: omschrijving
+        description: Transaction description
+
+  - name: stg_telecom_calls
+    description: >
+      Staging model for phone calls. Cleans and normalizes
+      call records from raw_calls table.
+    
+    config:
+      materialized: view
+      tags: ["staging", "telecom"]
+    
+    columns:
+      - name: call_id
+        description: Primary key from raw_calls
+        tests:
+          - unique
+          - not_null
+      
+      - name: investigation_id
+        tests:
+          - not_null
+      
+      - name: source_id
+        tests:
+          - not_null
+      
+      - name: caller_number
+        description: Caller phone number (cleaned)
+      
+      - name: called_number
+        description: Called phone number (cleaned)
+      
+      - name: call_timestamp
+        description: Combined date and time of call
+      
+      - name: duration_seconds
+        description: Call duration in seconds
+        tests:
+          - not_null
+
+  - name: stg_telecom_messages
+    description: >
+      Staging model for SMS/text messages. Cleans and normalizes
+      message records from raw_messages table.
+    
+    config:
+      materialized: view
+      tags: ["staging", "telecom"]
+    
+    columns:
+      - name: message_id
+        description: Primary key from raw_messages
+        tests:
+          - unique
+          - not_null
+      
+      - name: investigation_id
+        tests:
+          - not_null
+      
+      - name: source_id
+        tests:
+          - not_null
+      
+      - name: sender_number
+        description: Sender phone number (cleaned)
+      
+      - name: recipient_number
+        description: Recipient phone number (cleaned)
+      
+      - name: message_timestamp
+        description: Combined date and time of message
+      
+      - name: message_text
+        description: Message content

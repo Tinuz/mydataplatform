@@ -5,7 +5,33 @@ Provides connections to:
 - PostgreSQL (investigations database)
 - MinIO (file storage)
 - Investigation API (status updates)
+- dbt CLI (canonical models)
 """
+
+from dagster import ConfigurableResource
+from dagster_dbt import DbtCliResource
+from pydantic import Field
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from minio import Minio
+from minio.error import S3Error
+import httpx
+from typing import Optional, Dict, Any
+from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
+import psycopg2
+from psycopg2.extras import Json
+import boto3
+from dagster import ConfigurableResource
+from dagster_dbt import DbtCliResource
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 from dagster import ConfigurableResource
 from pydantic import Field
@@ -232,10 +258,14 @@ investigation_resources = {
         endpoint="minio:9000",
         access_key="minio",
         secret_key="minio12345",
-        secure=False,
-        bucket="investigations"
+        secure=False
     ),
     "api": InvestigationAPIResource(
         base_url="http://investigations-api:8000"
-    )
+    ),
+    "dbt": DbtCliResource(
+        project_dir="/opt/dagster/dbt_investigations",
+        profiles_dir="/opt/dagster/dbt_investigations",
+        target="dev",
+    ),
 }

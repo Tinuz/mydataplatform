@@ -23,6 +23,163 @@ from .file_detection import detect_file_type, validate_csv_structure
 logger = logging.getLogger(__name__)
 
 
+def write_transactions_to_postgres(
+    postgres: PostgresResource,
+    df: pd.DataFrame,
+    investigation_id: str,
+    source_id: str
+) -> int:
+    """
+    Write transaction records to PostgreSQL raw_transactions table
+    
+    Args:
+        postgres: PostgreSQL resource
+        df: DataFrame with transaction data
+        investigation_id: Investigation ID
+        source_id: Source ID
+    
+    Returns:
+        Number of records written
+    """
+    # Prepare data for insertion
+    records = []
+    for _, row in df.iterrows():
+        # Try both column names (before/after cleaning)
+        iban_to = row.get('tegenrekening_iban') or row.get('tegenrekening')
+        
+        record = {
+            'investigation_id': investigation_id,
+            'source_id': source_id,
+            'iban_from': row.get('iban'),
+            'iban_to': iban_to,
+            'bedrag': row.get('bedrag'),
+            'datum': row.get('datum'),
+            'omschrijving': row.get('omschrijving'),
+            'raw_data': row.to_json()  # Store full row as JSONB
+        }
+        records.append(record)
+    
+    # Bulk insert
+    if records:
+        conn = postgres.get_connection()
+        cursor = conn.cursor()
+        
+        insert_query = """
+            INSERT INTO raw_transactions 
+            (investigation_id, source_id, iban_from, iban_to, bedrag, datum, omschrijving, raw_data)
+            VALUES (%(investigation_id)s, %(source_id)s, %(iban_from)s, %(iban_to)s, %(bedrag)s, %(datum)s, %(omschrijving)s, %(raw_data)s::jsonb)
+        """
+        
+        cursor.executemany(insert_query, records)
+        conn.commit()
+        cursor.close()
+        conn.close()
+    
+    return len(records)
+
+
+def write_calls_to_postgres(
+    postgres: PostgresResource,
+    df: pd.DataFrame,
+    investigation_id: str,
+    source_id: str
+) -> int:
+    """
+    Write call records to PostgreSQL raw_calls table
+    
+    Args:
+        postgres: PostgreSQL resource
+        df: DataFrame with call data
+        investigation_id: Investigation ID
+        source_id: Source ID
+    
+    Returns:
+        Number of records written
+    """
+    records = []
+    for _, row in df.iterrows():
+        record = {
+            'investigation_id': investigation_id,
+            'source_id': source_id,
+            'caller_number': row.get('calling_number') or row.get('caller'),
+            'called_number': row.get('called_number') or row.get('recipient'),
+            'call_date': row.get('date') or row.get('call_date'),
+            'call_time': row.get('time') or row.get('call_time'),
+            'duration_seconds': row.get('duration_seconds') or row.get('duration'),
+            'call_type': row.get('call_type', 'unknown'),
+            'raw_data': row.to_json()
+        }
+        records.append(record)
+    
+    if records:
+        conn = postgres.get_connection()
+        cursor = conn.cursor()
+        
+        insert_query = """
+            INSERT INTO raw_calls 
+            (investigation_id, source_id, caller_number, called_number, call_date, call_time, duration_seconds, call_type, raw_data)
+            VALUES (%(investigation_id)s, %(source_id)s, %(caller_number)s, %(called_number)s, %(call_date)s, %(call_time)s, %(duration_seconds)s, %(call_type)s, %(raw_data)s::jsonb)
+        """
+        
+        cursor.executemany(insert_query, records)
+        conn.commit()
+        cursor.close()
+        conn.close()
+    
+    return len(records)
+
+
+def write_messages_to_postgres(
+    postgres: PostgresResource,
+    df: pd.DataFrame,
+    investigation_id: str,
+    source_id: str
+) -> int:
+    """
+    Write message records to PostgreSQL raw_messages table
+    
+    Args:
+        postgres: PostgreSQL resource
+        df: DataFrame with message data
+        investigation_id: Investigation ID
+        source_id: Source ID
+    
+    Returns:
+        Number of records written
+    """
+    records = []
+    for _, row in df.iterrows():
+        record = {
+            'investigation_id': investigation_id,
+            'source_id': source_id,
+            'sender_number': row.get('sender') or row.get('from_number'),
+            'recipient_number': row.get('recipient') or row.get('to_number'),
+            'message_date': row.get('date') or row.get('message_date'),
+            'message_time': row.get('time') or row.get('message_time'),
+            'message_text': row.get('message') or row.get('text'),
+            'message_type': row.get('message_type', 'sms'),
+            'raw_data': row.to_json()
+        }
+        records.append(record)
+    
+    if records:
+        conn = postgres.get_connection()
+        cursor = conn.cursor()
+        
+        insert_query = """
+            INSERT INTO raw_messages 
+            (investigation_id, source_id, sender_number, recipient_number, message_date, message_time, message_text, message_type, raw_data)
+            VALUES (%(investigation_id)s, %(source_id)s, %(sender_number)s, %(recipient_number)s, %(message_date)s, %(message_time)s, %(message_text)s, %(message_type)s, %(raw_data)s::jsonb)
+        """
+        
+        cursor.executemany(insert_query, records)
+        conn.commit()
+        cursor.close()
+        conn.close()
+    
+    return len(records)
+
+
 def calculate_file_hash(file_content: bytes, algorithm: str = 'sha256') -> str:
     """
     Calculate cryptographic hash of file content
@@ -200,7 +357,7 @@ def save_validation_metadata(
 
 
 @asset(
-    group_name="investigations",
+    group_name="investigations_ingestion",
     description="Detect file type and validate structure"
 )
 def detect_pending_files(
@@ -267,7 +424,7 @@ def detect_pending_files(
 
 
 @asset(
-    group_name="investigations",
+    group_name="investigations_ingestion",
     description="Process bank transaction CSV files"
 )
 def process_bank_transactions(
@@ -320,11 +477,18 @@ def process_bank_transactions(
             # Normalize column names (ensure they're strings first)
             df.columns = [str(col).lower().strip() for col in df.columns]
             
-            # Validate required columns
-            required_columns = ['iban', 'bedrag']
-            missing = [col for col in required_columns if col not in df.columns]
-            if missing:
-                raise ValueError(f"Missing required columns: {', '.join(missing)}")
+            # Validate required columns - accept different column name variants
+            # Different banks use different column names, these will be normalized in clean_bank_transactions()
+            required_iban_variants = ['iban', 'rekeningnummer', 'from_account', 'account_number', 'source_iban', 'dest_iban']
+            required_amount_variants = ['bedrag', 'amount', 'bedrag (eur)', 'value']
+            
+            has_iban = any(col in df.columns for col in required_iban_variants)
+            has_amount = any(col in df.columns for col in required_amount_variants)
+            
+            if not has_iban:
+                raise ValueError(f"Missing IBAN column. Expected one of: {', '.join(required_iban_variants)}")
+            if not has_amount:
+                raise ValueError(f"Missing amount column. Expected one of: {', '.join(required_amount_variants)}")
             
             # Add investigation context
             df['investigation_id'] = investigation_id
@@ -349,6 +513,10 @@ def process_bank_transactions(
             # Upload to MinIO
             context.log.info(f"Writing {record_count} records to {parquet_path}")
             minio.upload_file(parquet_path, parquet_bytes, content_type='application/parquet')
+            
+            # Write detail records to PostgreSQL
+            records_inserted = write_transactions_to_postgres(postgres, df, investigation_id, source_id)
+            context.log.info(f"Inserted {records_inserted} records into raw_transactions table")
             
             # Generate and save validation metadata
             validation_metadata = generate_validation_metadata(
@@ -444,13 +612,39 @@ def clean_bank_transactions(df: pd.DataFrame) -> pd.DataFrame:
     """
     # Common column name mappings (Dutch banks use different names)
     column_mappings = {
+        # Dutch bank format (Bank A, Bank C)
         'rekeningnummer': 'iban',
         'tegenrekening': 'tegenrekening_iban',
         'bedrag (eur)': 'bedrag',
         'valutadatum': 'datum',
         'boekdatum': 'boekdatum',
         'omschrijving': 'omschrijving',
-        'naam tegenpartij': 'tegenpartij_naam'
+        'naam tegenpartij': 'tegenpartij_naam',
+        # Bank A format (Marvel test data)
+        'iban_from': 'iban',
+        'iban_to': 'tegenrekening_iban',
+        # International format (Bank B - Rabobank)
+        'from_account': 'iban',
+        'to_account': 'tegenrekening_iban',
+        'amount': 'bedrag',
+        'date': 'datum',
+        'description': 'omschrijving',
+        'transaction_type': 'type',
+        # Bank C format (English column names)
+        'source_iban': 'iban',
+        'dest_iban': 'tegenrekening_iban',
+        'value': 'bedrag',
+        'transaction_date': 'datum',
+        'narrative': 'omschrijving',
+        'ccy': 'valuta',
+        # Bank D format (ABN AMRO branch - Marvel test data)
+        'debit_account': 'iban',
+        'credit_account': 'tegenrekening_iban',
+        'trans_amount': 'bedrag',
+        'trans_date': 'datum',
+        'trans_description': 'omschrijving',
+        'trans_type': 'type',
+        'trans_currency': 'valuta'
     }
     
     # Rename columns if they exist
@@ -484,7 +678,7 @@ def clean_bank_transactions(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @asset(
-    group_name="investigations",
+    group_name="investigations_ingestion",
     description="Process telecom call records CSV files"
 )
 def process_telecom_calls(
@@ -562,6 +756,14 @@ def process_telecom_calls(
             df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
             parquet_bytes = parquet_buffer.getvalue()
             minio.upload_file(parquet_path, parquet_bytes, content_type='application/parquet')
+            
+            # Write detail records to PostgreSQL
+            if record_type == 'message':
+                records_inserted = write_messages_to_postgres(postgres, df, investigation_id, source_id)
+                context.log.info(f"Inserted {records_inserted} records into raw_messages table")
+            else:
+                records_inserted = write_calls_to_postgres(postgres, df, investigation_id, source_id)
+                context.log.info(f"Inserted {records_inserted} records into raw_calls table")
             
             # Generate and save validation metadata
             validation_metadata = generate_validation_metadata(
@@ -656,6 +858,36 @@ def process_telecom_calls(
 
 def clean_call_records(df: pd.DataFrame) -> pd.DataFrame:
     """Clean and normalize call record and SMS data"""
+    
+    # Column mappings for different telecom providers
+    column_mappings = {
+        # Telecom A (KPN) - Marvel test data
+        'from_number': 'caller',
+        'to_number': 'callee',
+        'duration_seconds': 'duration',
+        'message_content': 'message_text',
+        # Telecom B (Vodafone) - Marvel test data
+        'caller_number': 'caller',
+        'callee_number': 'callee',
+        'call_duration': 'duration',
+        'receiver': 'recipient',
+        'text_content': 'message_text',
+        # Telecom C (T-Mobile) - Marvel test data
+        'origin': 'caller',
+        'destination': 'callee',
+        'duration_sec': 'duration',
+        'origin_msisdn': 'sender',
+        'dest_msisdn': 'recipient',
+        'message_body': 'message_text',
+        # Generic mappings
+        'calling_number': 'caller',
+        'called_number': 'callee'
+    }
+    
+    # Rename columns if they exist
+    for old_name, new_name in column_mappings.items():
+        if old_name in df.columns and new_name not in df.columns:
+            df = df.rename(columns={old_name: new_name})
     
     # Normalize phone numbers (works for both calls and SMS)
     phone_columns = ['caller', 'callee', 'calling_number', 'called_number', 'sender', 'recipient']

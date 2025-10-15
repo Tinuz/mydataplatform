@@ -288,6 +288,13 @@
             font-weight: 500;
         }
 
+        .step-description {
+            font-size: 9px;
+            color: #9ca3af;
+            margin-top: 2px;
+            font-style: italic;
+        }
+
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
@@ -660,6 +667,44 @@
                 </div>
             </div>
 
+            <!-- Automated Pipeline Info -->
+            <div class="card" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-left: 4px solid #667eea;">
+                <h2>🤖 Automated Pipeline</h2>
+                <p style="color: #4b5563; margin-bottom: 15px; font-size: 14px;">
+                    De volledige pipeline draait automatisch via sensors. Geen handmatige actie nodig!
+                </p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div style="background: white; padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">📤 → 🔍</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">File Detection</div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            Sensor checkt elke <strong>30 seconden</strong> op nieuwe uploads
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">⚙️ → 💾</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Auto Processing</div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            Automatisch naar raw tables (transactions/calls/messages)
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">🔄 → ✨</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Canonical Mapping</div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            Sensor checkt elke <strong>60 seconden</strong> op unmapped data
+                        </div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">⏱️</div>
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 3px;">Totale Doorlooptijd</div>
+                        <div style="font-size: 12px; color: #6b7280;">
+                            Upload → Canonical: <strong>~90 seconden</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Processing Stats -->
             <div class="card">
                 <h2>📈 Processing Statistics</h2>
@@ -842,11 +887,12 @@
 
         function getPipelineHTML(source) {
             const steps = [
-                { id: 'upload', label: 'Upload', icon: '📤' },
-                { id: 'storage', label: 'Storage', icon: '💾' },
-                { id: 'process', label: 'Process', icon: '⚙️' },
-                { id: 'parquet', label: 'Parquet', icon: '📊' },
-                { id: 'complete', label: 'Complete', icon: '✓' }
+                { id: 'upload', label: 'Upload', icon: '📤', description: 'File to MinIO' },
+                { id: 'detect', label: 'Detect', icon: '�', description: 'Sensor (30s)' },
+                { id: 'process', label: 'Process', icon: '⚙️', description: 'Raw tables' },
+                { id: 'map', label: 'Map', icon: '🔄', description: 'Sensor (60s)' },
+                { id: 'canonical', label: 'Canonical', icon: '✨', description: 'Auto-mapped' },
+                { id: 'complete', label: 'Complete', icon: '✓', description: 'Ready for dbt' }
             ];
 
             let currentStepIndex = 0;
@@ -854,13 +900,15 @@
 
             switch (source.processing_status) {
                 case 'pending':
-                    currentStepIndex = 1;
+                    currentStepIndex = 1; // Waiting for detection
                     break;
                 case 'processing':
-                    currentStepIndex = 2;
+                    currentStepIndex = 2; // Processing raw data
                     break;
                 case 'completed':
-                    currentStepIndex = 5;
+                    // Check if canonical mapping is done (this would require additional status field)
+                    // For now assume it completes through to canonical
+                    currentStepIndex = 6; // Full pipeline complete
                     break;
                 case 'failed':
                     currentStepIndex = 2;
@@ -883,9 +931,10 @@
                 }
 
                 return `
-                    <div class="pipeline-step ${stepClass}">
+                    <div class="pipeline-step ${stepClass}" title="${step.description}">
                         <div class="step-icon">${step.icon}</div>
                         <div class="step-label">${step.label}</div>
+                        <div class="step-description">${step.description}</div>
                     </div>
                 `;
             }).join('');

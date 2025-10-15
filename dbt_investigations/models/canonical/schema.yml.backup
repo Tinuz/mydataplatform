@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: dim_bank_account
+    description: Bank accounts dimension
+    config:
+      contract:
+        enforced: false
+    columns:
+      - name: account_key
+        data_type: varchar
+      - name: iban
+        data_type: varchar
+
+  - name: dim_phone_number
+    description: Phone numbers dimension
+    config:
+      contract:
+        enforced: false
+    columns:
+      - name: phone_key
+        data_type: varchar
+      - name: phone_number
+        data_type: varchar
+
+  - name: fact_transaction
+    description: Transaction facts
+    config:
+      contract:
+        enforced: false
+    columns:
+      - name: transaction_key
+        data_type: varchar
+      - name: amount
+        data_type: numeric
+

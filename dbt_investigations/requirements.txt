@@ -1,0 +1,18 @@
+# Python dependencies for dbt + Dagster integration
+
+# dbt
+dbt-core>=1.7.0
+dbt-duckdb>=1.7.0
+dbt-postgres>=1.7.0
+
+# Dagster + dbt
+dagster-dbt>=0.22.0
+
+# Great Expectations
+great-expectations>=0.18.0
+
+# Data quality
+dbt-expectations>=0.10.0
+
+# Utilities
+pydantic>=2.0.0

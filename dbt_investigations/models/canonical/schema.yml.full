@@ -1,0 +1,799 @@
+version: 2
+
+models:
+  # ======================
+  # DIMENSIONS (Master Data)
+  # ======================
+  
+  - name: dim_bank_account
+    description: >
+      Master dimension table for bank accounts. Contains standardized
+      IBAN information with bank details and validation. Type 2 SCD
+      with valid_from/valid_to for historical tracking.
+    
+    config:
+      contract:
+        enforced: true
+      materialized: table
+      tags: ["dimension", "canonical", "financial"]
+    
+    columns:
+      - name: account_key
+        description: Surrogate key for bank account (UUID)
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
+          - type: primary_key
+        tests:
+          - unique
+          - not_null
+      
+      - name: iban
+        description: International Bank Account Number (max 34 chars)
+        data_type: varchar(34)
+        constraints:
+          - type: not_null
+          - type: unique
+        tests:
+          - unique
+          - not_null
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_match_regex
+                regex: "^[A-Z]{2}[0-9]{2}[A-Z0-9]+$"
+      
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code (2 chars)
+        data_type: char(2)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['NL', 'BE', 'DE', 'FR', 'GB', 'ES', 'IT']
+      
+      - name: bank_code
+        description: Bank identifier code (e.g., ABNA, INGB, RABO)
+        data_type: varchar(4)
+      
+      - name: account_number
+        description: Actual account number part of IBAN
+        data_type: varchar(18)
+      
+      - name: bank_name
+        description: Full name of the bank
+        data_type: varchar(100)
+        tests:
+          - not_null
+      
+      - name: account_type
+        description: Type of account (checking, savings, investment)
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['checking', 'savings', 'investment', 'credit', 'loan', 'unknown']
+      
+      - name: currency
+        description: Currency of the account (ISO 4217)
+        data_type: char(3)
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['EUR', 'USD', 'GBP', 'CHF']
+      
+      - name: valid_from
+        description: Start date of record validity (SCD Type 2)
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: valid_to
+        description: End date of record validity (NULL = current)
+        data_type: timestamp
+      
+      - name: is_current
+        description: Flag indicating current record version
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: source_system
+        description: Originating system for this account
+        data_type: varchar(50)
+      
+      - name: created_at
+        description: Record creation timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: updated_at
+        description: Record last update timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+
+  - name: dim_phone_number
+    description: >
+      Master dimension table for phone numbers. Contains standardized
+      phone numbers with provider details and validation status.
+    
+    config:
+      contract:
+        enforced: true
+      materialized: table
+      tags: ["dimension", "canonical", "telecom"]
+    
+    columns:
+      - name: phone_key
+        description: Surrogate key for phone number (UUID)
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
+          - type: primary_key
+      
+      - name: phone_number
+        description: Normalized phone number (E.164 format)
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+          - type: unique
+        tests:
+          - unique
+          - not_null
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_match_regex
+                regex: "^\\+?[0-9]{10,15}$"
+      
+      - name: country_code
+        description: Phone country code (e.g., +31 for NL)
+        data_type: varchar(4)
+      
+      - name: area_code
+        description: Area/region code
+        data_type: varchar(5)
+      
+      - name: local_number
+        description: Local phone number part
+        data_type: varchar(15)
+      
+      - name: phone_type
+        description: Type of phone number
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['mobile', 'landline', 'voip', 'unknown']
+      
+      - name: provider
+        description: Telecom provider (KPN, Vodafone, T-Mobile)
+        data_type: varchar(50)
+      
+      - name: is_valid
+        description: Validation status of the phone number
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: valid_from
+        description: Start date of record validity
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: valid_to
+        description: End date of record validity
+        data_type: timestamp
+      
+      - name: is_current
+        description: Flag indicating current record version
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: source_system
+        description: Originating system
+        data_type: varchar(50)
+      
+      - name: created_at
+        description: Record creation timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: updated_at
+        description: Record last update timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+
+  - name: dim_person
+    description: >
+      Master dimension table for persons/entities. Links to accounts
+      and phone numbers. Can represent individuals or organizations.
+    
+    config:
+      contract:
+        enforced: true
+      materialized: table
+      tags: ["dimension", "canonical", "master_data"]
+    
+    columns:
+      - name: person_key
+        description: Surrogate key for person (UUID)
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
+          - type: primary_key
+      
+      - name: full_name
+        description: Full name of person/entity
+        data_type: varchar(200)
+        constraints:
+          - type: not_null
+      
+      - name: person_type
+        description: Individual or organization
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['individual', 'organization', 'unknown']
+      
+      - name: birth_date
+        description: Date of birth (individuals only)
+        data_type: date
+      
+      - name: nationality
+        description: ISO country code of nationality
+        data_type: char(2)
+      
+      - name: tax_id
+        description: Tax identification number (BSN, BTW, etc)
+        data_type: varchar(50)
+      
+      - name: email
+        description: Primary email address
+        data_type: varchar(200)
+      
+      - name: address_street
+        description: Street address
+        data_type: varchar(200)
+      
+      - name: address_city
+        description: City
+        data_type: varchar(100)
+      
+      - name: address_postal_code
+        description: Postal/ZIP code
+        data_type: varchar(20)
+      
+      - name: address_country
+        description: Country code
+        data_type: char(2)
+      
+      - name: is_suspicious
+        description: Flag for suspicious activity
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: risk_score
+        description: Risk score (0.00-1.00)
+        data_type: decimal(3,2)
+      
+      - name: valid_from
+        description: Start date of record validity
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: valid_to
+        description: End date of record validity
+        data_type: timestamp
+      
+      - name: is_current
+        description: Flag indicating current record version
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: source_system
+        description: Originating system
+        data_type: varchar(50)
+      
+      - name: created_at
+        description: Record creation timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: updated_at
+        description: Record last update timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+
+  # ======================
+  # FACTS (Transactional Data)
+  # ======================
+
+  - name: fact_transaction
+    description: >
+      Fact table for financial transactions. Contains all bank
+      transactions with links to account dimensions and enriched
+      with category and risk scoring.
+    
+    config:
+      contract:
+        enforced: true
+      materialized: table
+      tags: ["fact", "canonical", "financial"]
+      partition_by:
+        field: transaction_date
+        data_type: date
+        granularity: month
+    
+    columns:
+      - name: transaction_id
+        description: Unique transaction identifier (UUID)
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
+          - type: primary_key
+      
+      - name: investigation_id
+        description: Reference to investigation
+        data_type: varchar
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      
+      - name: source_id
+        description: Reference to source file
+        data_type: varchar
+        constraints:
+          - type: not_null
+      
+      - name: transaction_date
+        description: Date of transaction
+        data_type: date
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      
+      - name: transaction_timestamp
+        description: Exact timestamp of transaction
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: posted_date
+        description: Date transaction was posted/cleared
+        data_type: date
+      
+      - name: iban_from
+        description: Source IBAN
+        data_type: varchar(34)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_bank_account')
+              field: iban
+      
+      - name: iban_to
+        description: Destination IBAN
+        data_type: varchar(34)
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('dim_bank_account')
+              field: iban
+      
+      - name: account_key_from
+        description: FK to dim_bank_account (from)
+        data_type: varchar
+        tests:
+          - relationships:
+              to: ref('dim_bank_account')
+              field: account_key
+      
+      - name: account_key_to
+        description: FK to dim_bank_account (to)
+        data_type: varchar
+        tests:
+          - relationships:
+              to: ref('dim_bank_account')
+              field: account_key
+      
+      - name: amount
+        description: Transaction amount (negative = debit)
+        data_type: decimal(15,2)
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_be_between
+                min_value: -10000000
+                max_value: 10000000
+      
+      - name: currency
+        description: Currency code (ISO 4217)
+        data_type: char(3)
+        constraints:
+          - type: not_null
+        tests:
+          - accepted_values:
+              values: ['EUR', 'USD', 'GBP', 'CHF']
+      
+      - name: transaction_type
+        description: Type of transaction
+        data_type: varchar(50)
+        tests:
+          - accepted_values:
+              values: ['debit', 'credit', 'transfer', 'withdrawal', 'deposit', 'payment', 'fee', 'interest']
+      
+      - name: category
+        description: Transaction category
+        data_type: varchar(100)
+      
+      - name: description
+        description: Transaction description
+        data_type: text
+      
+      - name: counter_party_name
+        description: Name of counter party
+        data_type: varchar(200)
+      
+      - name: reference
+        description: Transaction reference/memo
+        data_type: varchar(100)
+      
+      - name: is_suspicious
+        description: Flag for suspicious transaction
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: risk_score
+        description: Risk score (0.00-1.00)
+        data_type: decimal(3,2)
+        tests:
+          - accepted_values:
+              # Custom test: value >= 0 AND value <= 1
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_be_between
+                min_value: 0
+                max_value: 1
+      
+      - name: tags
+        description: Array of tags for categorization
+        data_type: varchar[]
+      
+      - name: created_at
+        description: Record creation timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: updated_at
+        description: Record last update timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+
+  - name: fact_phone_call
+    description: >
+      Fact table for phone calls. Contains all call records with
+      links to phone number dimensions and location data.
+    
+    config:
+      contract:
+        enforced: true
+      materialized: table
+      tags: ["fact", "canonical", "telecom"]
+      partition_by:
+        field: call_date
+        data_type: date
+        granularity: month
+    
+    columns:
+      - name: call_id
+        description: Unique call identifier (UUID)
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
+          - type: primary_key
+      
+      - name: investigation_id
+        description: Reference to investigation
+        data_type: varchar
+        constraints:
+          - type: not_null
+      
+      - name: source_id
+        description: Reference to source file
+        data_type: varchar
+        constraints:
+          - type: not_null
+      
+      - name: call_timestamp
+        description: Exact timestamp of call start
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: call_date
+        description: Date of call
+        data_type: date
+        constraints:
+          - type: not_null
+      
+      - name: call_duration_seconds
+        description: Call duration in seconds
+        data_type: integer
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_be_between
+                min_value: 0
+                max_value: 86400  # Max 24 hours
+      
+      - name: caller_number
+        description: Caller phone number
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_number
+      
+      - name: callee_number
+        description: Callee phone number
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_number
+      
+      - name: phone_key_caller
+        description: FK to dim_phone_number (caller)
+        data_type: varchar
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_key
+      
+      - name: phone_key_callee
+        description: FK to dim_phone_number (callee)
+        data_type: varchar
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_key
+      
+      - name: call_type
+        description: Type of call
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['incoming', 'outgoing', 'missed', 'rejected', 'voicemail']
+      
+      - name: call_direction
+        description: Direction of call
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['inbound', 'outbound']
+      
+      - name: provider
+        description: Telecom provider
+        data_type: varchar(50)
+      
+      - name: cell_tower_id
+        description: Cell tower identifier
+        data_type: varchar(50)
+      
+      - name: location_lat
+        description: Latitude of call location
+        data_type: decimal(9,6)
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_be_between
+                min_value: -90
+                max_value: 90
+      
+      - name: location_lon
+        description: Longitude of call location
+        data_type: decimal(9,6)
+        meta:
+          great_expectations:
+            expectations:
+              - expectation_type: expect_column_values_to_be_between
+                min_value: -180
+                max_value: 180
+      
+      - name: is_suspicious
+        description: Flag for suspicious call
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: created_at
+        description: Record creation timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: updated_at
+        description: Record last update timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+
+  - name: fact_text_message
+    description: >
+      Fact table for SMS/text messages. Contains all message records
+      with sender/recipient links to phone dimensions.
+    
+    config:
+      contract:
+        enforced: true
+      materialized: table
+      tags: ["fact", "canonical", "telecom"]
+      partition_by:
+        field: message_date
+        data_type: date
+        granularity: month
+    
+    columns:
+      - name: message_id
+        description: Unique message identifier (UUID)
+        data_type: varchar
+        constraints:
+          - type: not_null
+          - type: unique
+          - type: primary_key
+      
+      - name: investigation_id
+        description: Reference to investigation
+        data_type: varchar
+        constraints:
+          - type: not_null
+      
+      - name: source_id
+        description: Reference to source file
+        data_type: varchar
+        constraints:
+          - type: not_null
+      
+      - name: message_timestamp
+        description: Exact timestamp of message
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: message_date
+        description: Date of message
+        data_type: date
+        constraints:
+          - type: not_null
+      
+      - name: sender_number
+        description: Sender phone number
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_number
+      
+      - name: recipient_number
+        description: Recipient phone number
+        data_type: varchar(20)
+        constraints:
+          - type: not_null
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_number
+      
+      - name: phone_key_sender
+        description: FK to dim_phone_number (sender)
+        data_type: varchar
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_key
+      
+      - name: phone_key_recipient
+        description: FK to dim_phone_number (recipient)
+        data_type: varchar
+        tests:
+          - relationships:
+              to: ref('dim_phone_number')
+              field: phone_key
+      
+      - name: message_type
+        description: Type of message
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['sms', 'mms', 'rcs', 'imessage', 'whatsapp']
+      
+      - name: message_direction
+        description: Direction of message
+        data_type: varchar(20)
+        tests:
+          - accepted_values:
+              values: ['sent', 'received']
+      
+      - name: message_content
+        description: Message text content (if available)
+        data_type: text
+      
+      - name: message_length
+        description: Length of message in characters
+        data_type: integer
+      
+      - name: has_attachments
+        description: Flag indicating attachments present
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: attachment_count
+        description: Number of attachments
+        data_type: integer
+      
+      - name: provider
+        description: Telecom provider
+        data_type: varchar(50)
+      
+      - name: is_suspicious
+        description: Flag for suspicious message
+        data_type: boolean
+        constraints:
+          - type: not_null
+      
+      - name: created_at
+        description: Record creation timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      
+      - name: updated_at
+        description: Record last update timestamp
+        data_type: timestamp
+        constraints:
+          - type: not_null
