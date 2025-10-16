@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "https://data-platform.example.com/schemas/fact_call.json",
+  "title": "Call Fact",
+  "description": "dbt fact table for telecom call records with enrichment and risk scoring",
+  "type": "object",
+  "required": [
+    "call_id",
+    "investigation_id",
+    "duration_seconds",
+    "call_direction"
+  ],
+  "properties": {
+    "call_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique call identifier"
+    },
+    "investigation_id": {
+      "type": "string",
+      "description": "Link to parent investigation"
+    },
+    "source_id": {
+      "type": ["string", "null"],
+      "description": "Source system identifier"
+    },
+    "call_date": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Call timestamp"
+    },
+    "call_date_only": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Call date (date part only)"
+    },
+    "call_time": {
+      "type": ["string", "null"],
+      "format": "time",
+      "description": "Call time (time part only)"
+    },
+    "caller_number": {
+      "type": ["string", "null"],
+      "description": "Caller phone number"
+    },
+    "called_number": {
+      "type": ["string", "null"],
+      "description": "Called phone number"
+    },
+    "caller_phone_key": {
+      "type": ["string", "null"],
+      "description": "Foreign key to dim_phone_number for caller"
+    },
+    "called_phone_key": {
+      "type": ["string", "null"],
+      "description": "Foreign key to dim_phone_number for called party"
+    },
+    "duration_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Call duration in seconds"
+    },
+    "duration_minutes": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Call duration in minutes (rounded to 2 decimals)"
+    },
+    "call_type": {
+      "type": "string",
+      "description": "Type of call (incoming, outgoing, missed, unknown)"
+    },
+    "call_direction": {
+      "type": "string",
+      "enum": ["inbound", "outbound", "missed", "unknown"],
+      "description": "Standardized call direction"
+    },
+    "is_suspicious": {
+      "type": "boolean",
+      "description": "Flag for suspicious calls (very long or very short)"
+    },
+    "risk_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Risk score based on duration and timing (0.0 to 1.0)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of tags for categorization"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    }
+  },
+  "additionalProperties": false
+}

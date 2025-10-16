@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "https://data-platform.example.com/schemas/dim_phone_number.json",
+  "title": "Phone Number Dimension",
+  "description": "dbt dimension table for phone numbers",
+  "type": "object",
+  "required": ["phone_key", "phone_number"],
+  "properties": {
+    "phone_key": {
+      "type": "string",
+      "description": "Surrogate key for phone number (generated from phone_number)"
+    },
+    "phone_number": {
+      "type": "string",
+      "pattern": "^\\+?[0-9]{10,15}$",
+      "description": "Phone number (MSISDN format)"
+    }
+  },
+  "additionalProperties": false
+}

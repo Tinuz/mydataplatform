@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://data-platform.example.com/schemas/canonical_communication.json",
+  "title": "Canonical Communication",
+  "description": "Standardized communication data model (calls, SMS, email) for investigation platform",
+  "type": "object",
+  "required": [
+    "source_system_id",
+    "source_record_id",
+    "investigation_id",
+    "communication_type",
+    "communication_datetime",
+    "originator_id",
+    "originator_type",
+    "recipient_id",
+    "recipient_type",
+    "source_raw_data"
+  ],
+  "properties": {
+    "canonical_communication_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Primary key UUID generated automatically"
+    },
+    "source_system_id": {
+      "type": "string",
+      "maxLength": 50,
+      "description": "Identifier for the source system (e.g., 'kpn', 'vodafone', 't-mobile')"
+    },
+    "source_record_id": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Unique identifier from source system"
+    },
+    "source_file_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Original filename of uploaded data"
+    },
+    "ingestion_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the record was ingested into the platform"
+    },
+    "investigation_id": {
+      "type": "string",
+      "maxLength": 50,
+      "description": "Link to parent investigation"
+    },
+    "communication_type": {
+      "type": "string",
+      "enum": ["call", "sms", "mms", "email", "voicemail", "data", "other"],
+      "description": "Type of communication event"
+    },
+    "communication_datetime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time when communication occurred"
+    },
+    "duration_seconds": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Duration in seconds (required for calls)"
+    },
+    "originator_id": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Sender's phone number, email, or identifier"
+    },
+    "originator_type": {
+      "type": "string",
+      "enum": ["msisdn", "email", "imei", "imsi", "ip", "other"],
+      "description": "Type of originator identifier"
+    },
+    "originator_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Name of sender if available"
+    },
+    "originator_location": {
+      "type": ["object", "null"],
+      "description": "Location data for sender (JSON with coordinates, cell tower info)"
+    },
+    "recipient_id": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Receiver's phone number, email, or identifier"
+    },
+    "recipient_type": {
+      "type": "string",
+      "enum": ["msisdn", "email", "imei", "imsi", "ip", "other"],
+      "description": "Type of recipient identifier"
+    },
+    "recipient_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Name of receiver if available"
+    },
+    "recipient_location": {
+      "type": ["object", "null"],
+      "description": "Location data for receiver (JSON with coordinates, cell tower info)"
+    },
+    "direction": {
+      "type": ["string", "null"],
+      "enum": ["outbound", "inbound", "internal", "unknown", null],
+      "description": "Direction relative to investigation subject"
+    },
+    "call_status": {
+      "type": ["string", "null"],
+      "maxLength": 20,
+      "description": "Call status (answered, busy, missed, voicemail)"
+    },
+    "location_info": {
+      "type": ["object", "null"],
+      "description": "General location information as JSON"
+    },
+    "message_content": {
+      "type": ["string", "null"],
+      "description": "Content of SMS/email message"
+    },
+    "message_subject": {
+      "type": ["string", "null"],
+      "maxLength": 500,
+      "description": "Subject line for emails"
+    },
+    "attachment_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Number of attachments in message"
+    },
+    "content_hash": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "description": "Hash of message content for deduplication"
+    },
+    "network_operator": {
+      "type": ["string", "null"],
+      "maxLength": 100,
+      "description": "Telecom network operator"
+    },
+    "connection_type": {
+      "type": ["string", "null"],
+      "maxLength": 50,
+      "description": "Network connection type (2G, 3G, 4G, 5G, WiFi)"
+    },
+    "cell_tower_id": {
+      "type": ["string", "null"],
+      "maxLength": 100,
+      "description": "Cell tower identifier"
+    },
+    "imei": {
+      "type": ["string", "null"],
+      "maxLength": 20,
+      "description": "International Mobile Equipment Identity"
+    },
+    "validation_status": {
+      "type": "string",
+      "enum": ["valid", "warning", "error", "pending"],
+      "default": "valid",
+      "description": "Data quality validation status"
+    },
+    "validation_messages": {
+      "type": ["object", "null"],
+      "description": "JSON object with validation warnings/errors"
+    },
+    "data_completeness_score": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Percentage of required fields populated"
+    },
+    "source_raw_data": {
+      "type": "object",
+      "description": "Original source data as JSON for audit trail"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    },
+    "created_by": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "system",
+      "description": "User or system that created the record"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "communication_type": { "const": "call" }
+        }
+      },
+      "then": {
+        "required": ["duration_seconds"]
+      }
+    }
+  ]
+}

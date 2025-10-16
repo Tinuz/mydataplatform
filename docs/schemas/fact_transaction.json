@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "https://data-platform.example.com/schemas/fact_transaction.json",
+  "title": "Transaction Fact",
+  "description": "dbt fact table for financial transactions with enrichment and risk scoring",
+  "type": "object",
+  "required": [
+    "transaction_id",
+    "investigation_id",
+    "amount"
+  ],
+  "properties": {
+    "transaction_id": {
+      "type": "string",
+      "description": "Unique transaction identifier"
+    },
+    "investigation_id": {
+      "type": "string",
+      "description": "Link to parent investigation"
+    },
+    "source_id": {
+      "type": ["string", "null"],
+      "description": "Source system identifier"
+    },
+    "transaction_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Transaction date"
+    },
+    "transaction_timestamp": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Transaction timestamp"
+    },
+    "posted_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Date transaction was posted"
+    },
+    "iban_from": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]+$",
+      "description": "Debtor IBAN"
+    },
+    "iban_to": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]+$",
+      "description": "Creditor IBAN"
+    },
+    "account_key_from": {
+      "type": ["string", "null"],
+      "description": "Foreign key to dim_bank_account for debtor"
+    },
+    "account_key_to": {
+      "type": ["string", "null"],
+      "description": "Foreign key to dim_bank_account for creditor"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Transaction amount"
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "default": "EUR",
+      "description": "Currency code (ISO 4217)"
+    },
+    "transaction_type": {
+      "type": "string",
+      "enum": ["credit", "debit", "neutral"],
+      "description": "Transaction type based on amount sign"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["income", "housing", "groceries", "transfer", "subscription", "utilities", "other"],
+      "description": "Transaction category based on description"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Transaction description"
+    },
+    "counter_party_name": {
+      "type": ["string", "null"],
+      "description": "Extracted counter party name"
+    },
+    "reference": {
+      "type": ["string", "null"],
+      "description": "Payment reference"
+    },
+    "is_suspicious": {
+      "type": "boolean",
+      "description": "Flag for suspicious transactions"
+    },
+    "risk_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Risk score (0.0 to 1.0)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of tags for categorization"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "https://data-platform.example.com/schemas/fact_message.json",
+  "title": "Message Fact",
+  "description": "dbt fact table for SMS/text messages with content analysis and risk scoring",
+  "type": "object",
+  "required": [
+    "message_id",
+    "investigation_id",
+    "message_length",
+    "message_direction"
+  ],
+  "properties": {
+    "message_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique message identifier"
+    },
+    "investigation_id": {
+      "type": "string",
+      "description": "Link to parent investigation"
+    },
+    "source_id": {
+      "type": ["string", "null"],
+      "description": "Source system identifier"
+    },
+    "message_date": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Message timestamp"
+    },
+    "message_date_only": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Message date (date part only)"
+    },
+    "message_time": {
+      "type": ["string", "null"],
+      "format": "time",
+      "description": "Message time (time part only)"
+    },
+    "sender_number": {
+      "type": ["string", "null"],
+      "description": "Sender phone number"
+    },
+    "recipient_number": {
+      "type": ["string", "null"],
+      "description": "Recipient phone number"
+    },
+    "sender_phone_key": {
+      "type": ["string", "null"],
+      "description": "Foreign key to dim_phone_number for sender"
+    },
+    "recipient_phone_key": {
+      "type": ["string", "null"],
+      "description": "Foreign key to dim_phone_number for recipient"
+    },
+    "message_text": {
+      "type": ["string", "null"],
+      "description": "Message content/text"
+    },
+    "message_length": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Length of message text in characters"
+    },
+    "word_count": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Number of words in message"
+    },
+    "message_type": {
+      "type": "string",
+      "enum": ["sms", "mms", "email", "other"],
+      "default": "sms",
+      "description": "Type of message"
+    },
+    "message_direction": {
+      "type": "string",
+      "enum": ["inbound", "outbound", "unknown"],
+      "description": "Message direction (sent or received)"
+    },
+    "is_suspicious": {
+      "type": "boolean",
+      "description": "Flag for suspicious messages (contains keywords or unusual patterns)"
+    },
+    "risk_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Risk score based on content and patterns (0.0 to 1.0)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Extracted keywords and categories"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    }
+  },
+  "additionalProperties": false
+}

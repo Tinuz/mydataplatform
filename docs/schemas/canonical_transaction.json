@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://data-platform.example.com/schemas/canonical_transaction.json",
+  "title": "Canonical Transaction",
+  "description": "Standardized financial transaction data model for investigation platform",
+  "type": "object",
+  "required": [
+    "source_system_id",
+    "source_record_id",
+    "investigation_id",
+    "transaction_datetime",
+    "currency_code",
+    "source_raw_data"
+  ],
+  "properties": {
+    "canonical_transaction_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Primary key UUID generated automatically"
+    },
+    "source_system_id": {
+      "type": "string",
+      "maxLength": 50,
+      "description": "Identifier for the source system (e.g., 'rabobank', 'ing', 'abn')"
+    },
+    "source_record_id": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Unique identifier from source system"
+    },
+    "source_file_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Original filename of uploaded data"
+    },
+    "ingestion_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the record was ingested into the platform"
+    },
+    "investigation_id": {
+      "type": "string",
+      "maxLength": 50,
+      "description": "Link to parent investigation"
+    },
+    "transaction_reference": {
+      "type": ["string", "null"],
+      "maxLength": 100,
+      "description": "Bank's transaction reference number"
+    },
+    "transaction_datetime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Date and time when transaction occurred"
+    },
+    "posting_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Date when transaction was posted to account"
+    },
+    "value_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Value date for interest calculation"
+    },
+    "amount": {
+      "type": ["number", "null"],
+      "minimum": -999999999999.99,
+      "maximum": 999999999999.99,
+      "description": "Transaction amount (can be null for ATM withdrawals)"
+    },
+    "currency_code": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "ISO 4217 currency code (e.g., EUR, USD)"
+    },
+    "debtor_account_id": {
+      "type": ["string", "null"],
+      "maxLength": 100,
+      "description": "Debtor account number or IBAN"
+    },
+    "debtor_account_type": {
+      "type": ["string", "null"],
+      "enum": ["iban", "account_number", "bic", "swift", "other", null],
+      "description": "Type of debtor account identifier"
+    },
+    "debtor_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Name of debtor party"
+    },
+    "debtor_bank_code": {
+      "type": ["string", "null"],
+      "maxLength": 20,
+      "description": "Debtor's bank code"
+    },
+    "creditor_account_id": {
+      "type": ["string", "null"],
+      "maxLength": 100,
+      "description": "Creditor account number or IBAN"
+    },
+    "creditor_account_type": {
+      "type": ["string", "null"],
+      "enum": ["iban", "account_number", "bic", "swift", "other", null],
+      "description": "Type of creditor account identifier"
+    },
+    "creditor_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Name of creditor party"
+    },
+    "creditor_bank_code": {
+      "type": ["string", "null"],
+      "maxLength": 20,
+      "description": "Creditor's bank code"
+    },
+    "transaction_type": {
+      "type": ["string", "null"],
+      "enum": ["debit", "credit", "transfer", "payment", "withdrawal", "deposit", "fee", "interest", "other", null],
+      "description": "Standardized transaction type"
+    },
+    "payment_method": {
+      "type": ["string", "null"],
+      "maxLength": 50,
+      "description": "Payment method (e.g., iDEAL, PIN, online)"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Transaction description or memo"
+    },
+    "reference_number": {
+      "type": ["string", "null"],
+      "maxLength": 100,
+      "description": "Payment reference or invoice number"
+    },
+    "is_cancelled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether transaction was cancelled"
+    },
+    "is_reversal": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a reversal transaction"
+    },
+    "related_transaction_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Link to related transaction (e.g., original transaction for reversal)"
+    },
+    "validation_status": {
+      "type": "string",
+      "enum": ["valid", "warning", "error", "pending"],
+      "default": "valid",
+      "description": "Data quality validation status"
+    },
+    "validation_messages": {
+      "type": ["object", "null"],
+      "description": "JSON object with validation warnings/errors"
+    },
+    "data_completeness_score": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Percentage of required fields populated"
+    },
+    "source_raw_data": {
+      "type": "object",
+      "description": "Original source data as JSON for audit trail"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    },
+    "created_by": {
+      "type": "string",
+      "maxLength": 100,
+      "default": "system",
+      "description": "User or system that created the record"
+    }
+  },
+  "additionalProperties": false
+}

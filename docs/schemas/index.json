@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "https://data-platform.example.com/schemas/index.json",
+  "title": "Data Platform Schema Index",
+  "description": "Master index of all schemas in the canonical data model",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version"
+    },
+    "layers": {
+      "type": "object",
+      "properties": {
+        "canonical": {
+          "type": "object",
+          "description": "Canonical integration layer schemas",
+          "properties": {
+            "canonical_transaction": {
+              "type": "object",
+              "properties": {
+                "schemaRef": {
+                  "type": "string",
+                  "const": "./canonical_transaction.json"
+                },
+                "description": {
+                  "type": "string",
+                  "const": "Standardized financial transaction data"
+                },
+                "sourceTable": {
+                  "type": "string",
+                  "const": "canonical.canonical_transaction"
+                },
+                "recordCount": {
+                  "type": "integer",
+                  "description": "Approximate record count"
+                }
+              }
+            },
+            "canonical_communication": {
+              "type": "object",
+              "properties": {
+                "schemaRef": {
+                  "type": "string",
+                  "const": "./canonical_communication.json"
+                },
+                "description": {
+                  "type": "string",
+                  "const": "Standardized communication data (calls, SMS)"
+                },
+                "sourceTable": {
+                  "type": "string",
+                  "const": "canonical.canonical_communication"
+                },
+                "recordCount": {
+                  "type": "integer",
+                  "description": "Approximate record count"
+                }
+              }
+            }
+          }
+        },
+        "analytical": {
+          "type": "object",
+          "description": "dbt analytical layer schemas",
+          "properties": {
+            "dimensions": {
+              "type": "object",
+              "properties": {
+                "dim_bank_account": {
+                  "type": "object",
+                  "properties": {
+                    "schemaRef": {
+                      "type": "string",
+                      "const": "./dim_bank_account.json"
+                    },
+                    "description": {
+                      "type": "string",
+                      "const": "Bank account dimension"
+                    },
+                    "dbtModel": {
+                      "type": "string",
+                      "const": "canonical.dim_bank_account"
+                    }
+                  }
+                },
+                "dim_phone_number": {
+                  "type": "object",
+                  "properties": {
+                    "schemaRef": {
+                      "type": "string",
+                      "const": "./dim_phone_number.json"
+                    },
+                    "description": {
+                      "type": "string",
+                      "const": "Phone number dimension"
+                    },
+                    "dbtModel": {
+                      "type": "string",
+                      "const": "canonical.dim_phone_number"
+                    }
+                  }
+                }
+              }
+            },
+            "facts": {
+              "type": "object",
+              "properties": {
+                "fact_transaction": {
+                  "type": "object",
+                  "properties": {
+                    "schemaRef": {
+                      "type": "string",
+                      "const": "./fact_transaction.json"
+                    },
+                    "description": {
+                      "type": "string",
+                      "const": "Transaction facts with enrichment and risk scoring"
+                    },
+                    "dbtModel": {
+                      "type": "string",
+                      "const": "canonical.fact_transaction"
+                    },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "const": ["dim_bank_account"]
+                    }
+                  }
+                },
+                "fact_call": {
+                  "type": "object",
+                  "properties": {
+                    "schemaRef": {
+                      "type": "string",
+                      "const": "./fact_call.json"
+                    },
+                    "description": {
+                      "type": "string",
+                      "const": "Call facts with duration analysis and risk scoring"
+                    },
+                    "dbtModel": {
+                      "type": "string",
+                      "const": "canonical.fact_call"
+                    },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "const": ["dim_phone_number"]
+                    }
+                  }
+                },
+                "fact_message": {
+                  "type": "object",
+                  "properties": {
+                    "schemaRef": {
+                      "type": "string",
+                      "const": "./fact_message.json"
+                    },
+                    "description": {
+                      "type": "string",
+                      "const": "Message facts with content analysis and risk scoring"
+                    },
+                    "dbtModel": {
+                      "type": "string",
+                      "const": "canonical.fact_message"
+                    },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "const": ["dim_phone_number"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "description": "Foreign key relationships between models",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Source model and field"
+          },
+          "to": {
+            "type": "string",
+            "description": "Target model and field"
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": ["one-to-one", "one-to-many", "many-to-one", "many-to-many"]
+          }
+        }
+      },
+      "default": [
+        {
+          "from": "fact_transaction.account_key_from",
+          "to": "dim_bank_account.account_key",
+          "cardinality": "many-to-one"
+        },
+        {
+          "from": "fact_transaction.account_key_to",
+          "to": "dim_bank_account.account_key",
+          "cardinality": "many-to-one"
+        },
+        {
+          "from": "fact_call.caller_phone_key",
+          "to": "dim_phone_number.phone_key",
+          "cardinality": "many-to-one"
+        },
+        {
+          "from": "fact_call.called_phone_key",
+          "to": "dim_phone_number.phone_key",
+          "cardinality": "many-to-one"
+        },
+        {
+          "from": "fact_message.sender_phone_key",
+          "to": "dim_phone_number.phone_key",
+          "cardinality": "many-to-one"
+        },
+        {
+          "from": "fact_message.recipient_phone_key",
+          "to": "dim_phone_number.phone_key",
+          "cardinality": "many-to-one"
+        }
+      ]
+    }
+  }
+}
