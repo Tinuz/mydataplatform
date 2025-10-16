@@ -14,17 +14,20 @@ Een **moderne data platform** voor het verwerken en analyseren van onderzoeksdat
 - ✅ **dbt transformations**: Staging → Canonical met data quality tests
 - ✅ **Star schema design**: Dimensions + Facts met enrichments
 - ✅ **46 automated tests**: Data quality validation
-- ✅ **Full lineage tracking**: Van raw data tot analytics
+- ✅ **Full lineage tracking**: Marquez/OpenLineage van MinIO tot Analytics
+- ✅ **JSON Schema documentation**: Alle modellen gedocumenteerd met validation schemas
+- ✅ **7-stage pipeline**: Upload → Raw → Canonical → Staging → Analytical → Complete
 
 ## Business Value
 
 | Aspect | Voor | Na |
 |--------|------|-----|
-| **Processing Time** | Handmatig, uren | Automatisch, minuten |
+| **Processing Time** | Handmatig, uren | Automatisch, ~2-3 minuten |
 | **Data Quality** | Geen validatie | 46 automated tests |
-| **Traceability** | Excel sheets | Full lineage in Dagster |
+| **Traceability** | Excel sheets | Full lineage tracking in Marquez |
 | **Analytics** | Ad-hoc queries | Canonical star schema |
 | **Risk Detection** | Manueel | Automated scoring |
+| **Documentation** | Word/PDF | JSON Schemas + dbt docs |
 
 ---
 
@@ -39,7 +42,15 @@ Een **moderne data platform** voor het verwerken en analyseren van onderzoeksdat
 │                    INGESTION LAYER                          │
 │  Sources: CSV Files (Bank, Telecom, Forensics)             │
 │  Pattern: Event-driven via File Upload Sensor              │
-│  Storage: Dual Write (PostgreSQL + MinIO)                  │
+│  Storage: Dual Write (PostgreSQL + MinIO Parquet)          │
+│  Lineage: Marquez namespace 'minio-storage'                │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   RAW PROCESSING LAYER                      │
+│  Jobs: process_bank_transactions, process_telecom_calls    │
+│  Pattern: Parse CSV → Validate → Load PostgreSQL           │
+│  Lineage: Marquez namespace 'investigations-raw'           │
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -47,6 +58,7 @@ Een **moderne data platform** voor het verwerken en analyseren van onderzoeksdat
 │  Staging: Data Cleaning & Normalization (Views)            │
 │  Canonical: Star Schema with Business Logic (Tables)       │
 │  Pattern: ELT (Extract-Load-Transform)                     │
+│  Lineage: Marquez namespaces 'dbt-staging', 'dbt-analytical'│
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -54,6 +66,7 @@ Een **moderne data platform** voor het verwerken en analyseren van onderzoeksdat
 │  Analytics: Superset Dashboards                            │
 │  API: RESTful endpoints voor case management               │
 │  ML: Risk scoring & pattern detection                      │
+│  Schema: JSON Schema documentation in docs/schemas/        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,7 +80,8 @@ Een **moderne data platform** voor het verwerken en analyseren van onderzoeksdat
 | **Storage - Object** | MinIO | S3-compatible, on-premise, Parquet archival |
 | **Visualization** | Apache Superset | Open-source, SQL-based, rich dashboards |
 | **API Gateway** | Kong | Rate limiting, authentication, service mesh |
-| **Lineage** | Marquez (OpenLineage) | Column-level lineage, impact analysis |
+| **Lineage** | Marquez/OpenLineage 1.0.0 | End-to-end lineage tracking, 6 namespaces |
+| **Schema Registry** | JSON Schema draft-07 | 7 schemas documented in docs/schemas/ |
 | **Container** | Docker Compose | Reproducible environments, easy deployment |
 
 ### Design Patterns
@@ -94,12 +108,20 @@ Serving Layer:
 
 ```
 Bronze (Raw):        raw_transactions, raw_calls, raw_messages
-                     ↓
+                     ↓ (Lineage: postgresql-raw namespace)
 Silver (Staging):    stg_bank_transactions, stg_telecom_calls
                      ↓ (data cleaning, normalization)
+                     ↓ (Lineage: dbt-staging namespace)
 Gold (Canonical):    fact_transaction, dim_bank_account
                      ↓ (business logic, enrichments)
+                     ↓ (Lineage: dbt-analytical namespace)
 ```
+
+**Lineage Tracking via Marquez/OpenLineage**:
+- **6 namespaces**: minio-storage, investigations-raw, postgresql-raw, canonical-integration, dbt-staging, dbt-analytical
+- **Full pipeline tracking**: File upload → Raw processing → Canonical transformation → dbt models
+- **Metrics captured**: Records processed, failures, data quality, execution time
+- **Facets**: dataSource, outputStatistics, dataQualityMetrics, errorMessage
 
 #### 3. **Event-Driven Processing**
 
@@ -199,8 +221,9 @@ canonical schema:
 │  2. File Upload UI → CSV files, validation                 │
 │  3. Superset → Analytics dashboards                         │
 │  4. Jupyter Notebooks → Ad-hoc analysis                     │
-│  5. Marquez → Lineage tracking                              │
-│  6. (Future) ML Platform → Risk models, NLP                 │
+│  5. Marquez → Lineage tracking (http://localhost:3001)     │
+│  6. JSON Schema Registry → docs/schemas/ (7 schemas)       │
+│  7. (Future) ML Platform → Risk models, NLP                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -341,22 +364,93 @@ WHERE ABS(f.amount - s.amount) > 0.01
 
 ### Data Lineage
 
-**End-to-End Traceability**:
+**End-to-End Traceability via Marquez/OpenLineage**:
 
 ```
-CSV File Upload (2025-10-14 10:00:00)
-  └─> raw_transactions.transaction_id = 'abc-123'
-      └─> staging.stg_bank_transactions (view)
-          └─> canonical.fact_transaction
-              ├─> Superset Dashboard "Investigation OND-2025-000003"
-              ├─> ML Model "Suspicious Transaction Detector"
-              └─> API Response /api/transactions/{investigation_id}
+CSV File Upload (2025-10-16 10:00:00) [minio-storage]
+  └─> MinIO bucket: investigations/uploads/OND-2025-000003/rabobank.csv
+      └─> process_bank_transactions job [investigations-raw]
+          └─> raw_transactions.transaction_id = 'abc-123' [postgresql-raw]
+              └─> canonical_transaction [canonical-integration]
+                  └─> stg_bank_transactions (dbt view) [dbt-staging]
+                      └─> fact_transaction (dbt table) [dbt-analytical]
+                          ├─> Superset Dashboard "Investigation OND-2025-000003"
+                          ├─> ML Model "Suspicious Transaction Detector"
+                          └─> API Response /api/transactions/{investigation_id}
 ```
+
+**Marquez Namespaces (6 total)**:
+1. **minio-storage**: File upload events from MinIO/GCS buckets
+2. **investigations-raw**: Raw data processing jobs (CSV parsing, validation)
+3. **postgresql-raw**: Raw database tables (raw_transactions, raw_calls, raw_messages)
+4. **canonical-integration**: Canonical layer transformations
+5. **dbt-staging**: dbt staging models (data cleaning)
+6. **dbt-analytical**: dbt analytical models (dimensions + facts)
+
+**OpenLineage Facets Captured**:
+- `dataSource`: Input/output datasets with connection info
+- `outputStatistics`: Record counts, bytes processed
+- `dataQualityMetrics`: Validation status, completeness scores
+- `errorMessage`: Failure details and stack traces
+- `documentation`: Model descriptions and business context
+- `sourceCodeLocation`: Git commit SHA and file paths
 
 **Via Dagster UI**:
 1. Click op `fact_transaction` asset
 2. Zie **Upstream**: `raw_transactions` → `stg_bank_transactions` → `dim_bank_account`
 3. Zie **Downstream**: Superset datasets, API endpoints
+
+**Via Marquez UI** (http://localhost:3001):
+1. Browse namespaces and datasets
+2. View column-level lineage
+3. Track data quality metrics over time
+4. Analyze impact of schema changes
+
+### JSON Schema Documentation
+
+**Schema Registry**: `docs/schemas/` (7 schemas gedocumenteerd)
+
+**Canonical Layer Schemas**:
+- `canonical_transaction.json`: Financial transactions (34 fields documented)
+- `canonical_communication.json`: Telecom data (40 fields documented)
+
+**Analytical Layer Schemas**:
+- `dim_bank_account.json`: Bank account dimension (2 fields)
+- `dim_phone_number.json`: Phone number dimension (2 fields)
+- `fact_transaction.json`: Transaction facts with enrichment (20 fields)
+- `fact_call.json`: Call facts with risk scoring (16 fields)
+- `fact_message.json`: Message facts with content analysis (18 fields)
+
+**Schema Features**:
+- **JSON Schema draft-07** format for maximum compatibility
+- **Validation rules**: Pattern matching, enums, constraints
+- **Business logic**: Documented risk scoring algorithms
+- **Relationships**: Foreign key mappings between models
+- **Examples**: Python validation, OpenAPI integration, TypeScript generation
+
+**Use Cases**:
+1. **Data Validation**: Validate incoming data against schemas
+   ```python
+   import jsonschema
+   jsonschema.validate(instance=transaction, schema=canonical_tx_schema)
+   ```
+
+2. **API Documentation**: Reference in OpenAPI specs
+   ```yaml
+   components:
+     schemas:
+       Transaction:
+         $ref: './docs/schemas/canonical_transaction.json'
+   ```
+
+3. **Type Generation**: Generate TypeScript/Python types
+   ```bash
+   npx json-schema-to-typescript docs/schemas/*.json
+   ```
+
+4. **Data Catalog**: Publish to Amundsen/DataHub for discovery
+
+**Documentation**: See `docs/schemas/README.md` for complete guide
 
 ### Metadata Management
 
@@ -1292,34 +1386,47 @@ docker exec -it dp_postgres psql -U superset -d superset -c \
 ## Data Architect
 
 - **Architecture Docs**: `docs/DBT_ARCHITECTURE.md`
+- **Pipeline Overview**: `docs/pipeline_overview.md`
 - **Technology Stack**: Docker Compose setup
-- **Lineage**: Dagster UI → Asset Graph
+- **Lineage Tracking**: 
+  - Dagster UI → Asset Graph (http://localhost:3000)
+  - Marquez UI → Lineage Explorer (http://localhost:3001)
+  - `orchestration/investigations/marquez_lineage.py`
 - **Schema Design**: `dbt_investigations/models/canonical/schema.yml`
+- **JSON Schemas**: `docs/schemas/` (7 schemas + README)
 - **External Reading**:
   - Kimball Dimensional Modeling
   - Martin Fowler - Data Mesh
   - dbt Best Practices Guide
+  - OpenLineage Specification
 
 ## Data Steward
 
-- **Data Dictionary**: `docs/DATA_DICTIONARY.md` (te maken)
+- **Data Dictionary**: `docs/schemas/README.md` (with all field definitions)
+- **JSON Schemas**: `docs/schemas/*.json` (canonical + analytical models)
 - **Quality Dashboard**: Dagster UI → Assets → Test results
+- **Lineage Explorer**: Marquez UI (http://localhost:3001)
 - **Business Glossary**: Confluence/Wiki (external)
 - **Access Policies**: `postgres-init/03_rbac.sql` (te maken)
 - **External Reading**:
   - DAMA DMBOK (Data Management Body of Knowledge)
   - ISO 8000 Data Quality Standards
+  - JSON Schema Specification
 
 ## Data Engineer
 
 - **Setup Guide**: `docs/DAGSTER_DBT_USAGE.md`
+- **Pipeline Documentation**: `docs/pipeline_overview.md`
 - **Code Structure**: `orchestration/` + `dbt_investigations/`
+- **Lineage Integration**: `orchestration/investigations/marquez_lineage.py`
+- **Schema Validation**: `docs/schemas/` (Python examples included)
 - **Troubleshooting**: `docs/DAGSTER_DBT_USAGE.md` (Troubleshooting section)
 - **API Docs**: `api/openapi.yaml`
 - **External Reading**:
   - Dagster Documentation
   - dbt Documentation
   - PostgreSQL Performance Tuning
+  - OpenLineage Integration Guide
 
 ---
 
@@ -1329,22 +1436,25 @@ docker exec -it dp_postgres psql -U superset -d superset -c \
 ✅ **Modern data stack** met proven technologies  
 ✅ **Star schema** voor flexible analytics  
 ✅ **Scalable design** kan groeien naar miljoenen records  
-✅ **Full lineage** van source tot consumption  
+✅ **Full lineage** via Marquez/OpenLineage (6 namespaces)  
 ✅ **Integration ready** voor ML, API's, dashboards  
+✅ **JSON Schema registry** voor data contracts en documentation
 
 ## Data Steward
 ✅ **46 automated tests** voor data quality  
 ✅ **6 quality dimensions** gedekt (completeness tot accuracy)  
-✅ **Full traceability** van elke record  
+✅ **Full traceability** van elke record via Marquez  
 ✅ **GDPR compliant** met right-to-be-forgotten support  
 ✅ **Role-based access** met PII masking  
+✅ **7 JSON schemas** met complete field documentation
 
 ## Data Engineer
 ✅ **Simple deployment** via Docker Compose  
 ✅ **Clear code structure** met separation of concerns  
 ✅ **Testable** via dbt tests + Python unit tests  
-✅ **Observable** via Dagster UI + logs  
+✅ **Observable** via Dagster UI + Marquez lineage  
 ✅ **Maintainable** met version control + CI/CD ready  
+✅ **Schema-driven** met JSON Schema validation support  
 
 ---
 
@@ -1365,6 +1475,22 @@ A:
 - Move to columnar storage (Parquet via Trino)
 - Consider Snowflake for analytics workload
 
+**Q: Hoe werkt Marquez lineage tracking?**  
+A:
+- **OpenLineage events** verzonden bij elke pipeline stap (START, RUNNING, COMPLETE, FAIL)
+- **6 namespaces** dekken complete pipeline: minio-storage → investigations-raw → postgresql-raw → canonical-integration → dbt-staging → dbt-analytical
+- **Marquez UI** (http://localhost:3001) toont visual lineage graphs
+- **Facets** bevatten metrics: record counts, processing time, data quality
+- **Impact analysis**: Zie welke downstream assets beïnvloed worden door schema changes
+
+**Q: Wat zijn JSON schemas en waarom zijn ze belangrijk?**  
+A:
+- **Data contracts** die structure en validation rules documenteren
+- **7 schemas**: 2 canonical (raw) + 2 dimensions + 3 facts (analytical)
+- **Use cases**: API documentation, data validation, TypeScript generation, data catalog
+- **Standard**: JSON Schema draft-07 voor maximum compatibility
+- **Location**: `docs/schemas/` met complete README en examples
+
 ## Steward Questions
 
 **Q: Hoe weet ik of data quality acceptable is?**  
@@ -1381,6 +1507,16 @@ A:
 - IBANs en phone numbers zijn PII
 - Use masked views voor analysts: `fact_transaction_masked`
 - GDPR deletion: `delete_subject_data(iban)` function
+- JSON schemas markeren PII fields voor compliance tracking
+
+**Q: Hoe gebruik ik Marquez voor impact analysis?**  
+A:
+1. Open Marquez UI (http://localhost:3001)
+2. Zoek dataset (bijv. "canonical_transaction")
+3. View lineage tab → zie upstream en downstream dependencies
+4. Check column lineage → welke source columns mappen naar output
+5. Zie data quality metrics over time
+6. Gebruik voor change impact assessment voordat schema wijzigingen maken
 
 ## Engineer Questions
 
@@ -1399,10 +1535,38 @@ docker exec -it dp_postgres psql -U superset -d superset -f /tmp/model.sql
 **Q: Hoe voeg ik een nieuw source systeem toe?**  
 A:
 1. Create raw table: `postgres-init/02_init_raw_tables.sql`
-2. Create processing asset: `orchestration/investigations/assets.py`
-3. Create staging model: `dbt_investigations/models/staging/stg_new_source.sql`
-4. Create canonical model: `dbt_investigations/models/canonical/fact_new_source.sql`
-5. Test, deploy, monitor
+2. Create JSON schema: `docs/schemas/canonical_newsource.json`
+3. Create processing asset: `orchestration/investigations/assets.py`
+   - Add Marquez lineage: emit_raw_lineage_start/complete/fail
+4. Create staging model: `dbt_investigations/models/staging/stg_new_source.sql`
+5. Create canonical model: `dbt_investigations/models/canonical/fact_new_source.sql`
+   - Add dbt lineage: emit_dbt_model_lineage
+6. Test, deploy, monitor in Marquez
+
+**Q: Hoe valideer ik data tegen JSON schemas?**  
+A:
+```python
+import json
+import jsonschema
+
+# Load schema
+with open('docs/schemas/canonical_transaction.json') as f:
+    schema = json.load(f)
+
+# Validate data
+try:
+    jsonschema.validate(instance=transaction_data, schema=schema)
+    print("✓ Valid")
+except jsonschema.ValidationError as e:
+    print(f"✗ Invalid: {e.message}")
+```
+
+**Q: Waar zie ik Marquez lineage in real-time?**  
+A:
+- **Marquez UI**: http://localhost:3001
+- **Dagster asset metadata**: Bevat `marquez_run_id` voor tracking
+- **PostgreSQL**: Lineage events worden ook in Marquez database opgeslagen
+- **API**: Marquez REST API op http://localhost:5000/api/v1 voor programmatic access
 
 **Q: Performance is slow, wat nu?**  
 A:
@@ -1421,9 +1585,15 @@ A:
 - **Data Governance Team**: governance@org.nl
 - **Platform Support**: Slack channel #data-platform
 - **Documentation**: https://docs.data-platform.org (internal)
+- **Marquez Lineage UI**: http://localhost:3001
+- **JSON Schema Registry**: `docs/schemas/README.md`
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 14 oktober 2025  
+**Document Version**: 2.0  
+**Last Updated**: 16 oktober 2025  
 **Authors**: Data Platform Team
+
+**Changelog**:
+- **v2.0 (16 okt 2025)**: Added Marquez/OpenLineage lineage tracking, JSON Schema documentation, 7-stage pipeline visualization
+- **v1.0 (14 okt 2025)**: Initial release with Dagster + dbt architecture

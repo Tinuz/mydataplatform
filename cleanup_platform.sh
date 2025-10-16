@@ -57,6 +57,7 @@ BEFORE_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t -A
 SELECT 
     (SELECT COUNT(*) FROM investigations),
     (SELECT COUNT(*) FROM data_sources),
+    (SELECT COUNT(*) FROM processed_records),
     (SELECT COUNT(*) FROM raw_transactions),
     (SELECT COUNT(*) FROM raw_calls),
     (SELECT COUNT(*) FROM raw_messages),
@@ -65,11 +66,12 @@ SELECT
 ")
 
 # Parse counts using IFS
-IFS='|' read -r INV_COUNT DS_COUNT RAW_TX_COUNT RAW_CALL_COUNT RAW_MSG_COUNT CAN_TX_COUNT CAN_COMM_COUNT <<< "$BEFORE_COUNTS"
+IFS='|' read -r INV_COUNT DS_COUNT PR_COUNT RAW_TX_COUNT RAW_CALL_COUNT RAW_MSG_COUNT CAN_TX_COUNT CAN_COMM_COUNT <<< "$BEFORE_COUNTS"
 
 echo "Current data:"
 echo "  - Investigations: $INV_COUNT"
 echo "  - Data sources: $DS_COUNT"
+echo "  - Processed records: $PR_COUNT"
 echo "  - Raw transactions: $RAW_TX_COUNT"
 echo "  - Raw calls: $RAW_CALL_COUNT"
 echo "  - Raw messages: $RAW_MSG_COUNT"
@@ -77,37 +79,33 @@ echo "  - Canonical transactions: $CAN_TX_COUNT"
 echo "  - Canonical communications: $CAN_COMM_COUNT"
 echo ""
 
-# Step 2: Delete canonical data
-echo "[2/5] Deleting canonical data..."
-docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME <<EOF
-DELETE FROM canonical.canonical_transaction;
-DELETE FROM canonical.canonical_communication;
--- canonical_person table is empty, no need to delete
--- canonical_mapping_log is disabled, no need to delete
-EOF
-echo "✓ Canonical data deleted"
+# Step 2: Delete in correct order (using TRUNCATE CASCADE for efficiency)
+echo "[2/6] Deleting all data (using TRUNCATE CASCADE)..."
+
+docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -c "
+-- Disable triggers temporarily for faster deletion
+SET session_replication_role = 'replica';
+
+-- Truncate all tables with CASCADE to ignore FK constraints
+TRUNCATE TABLE canonical.canonical_transaction, 
+                canonical.canonical_communication,
+                raw_transactions,
+                raw_calls,
+                raw_messages,
+                processed_records,
+                data_sources,
+                investigations
+CASCADE;
+
+-- Re-enable triggers
+SET session_replication_role = 'origin';
+"
+
+echo "✓ All data deleted successfully"
 echo ""
 
-# Step 3: Delete raw data
-echo "[3/5] Deleting raw data..."
-docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME <<EOF
-DELETE FROM raw_transactions;
-DELETE FROM raw_calls;
-DELETE FROM raw_messages;
-EOF
-echo "✓ Raw data deleted"
-echo ""
-
-# Step 4: Delete investigations (with CASCADE DELETE, this is now redundant but kept for clarity)
-echo "[4/6] Deleting all investigations..."
-docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME <<EOF
-DELETE FROM investigations;
-EOF
-echo "✓ Investigations deleted (CASCADE DELETE removed all related data)"
-echo ""
-
-# Step 5: Clean MinIO investigations bucket
-echo "[5/6] Cleaning MinIO investigations bucket..."
+# Step 3: Clean MinIO investigations bucket
+echo "[3/6] Cleaning MinIO investigations bucket..."
 MINIO_FILES=$(docker exec dp_dagster python3 -c "
 from minio import Minio
 client = Minio('minio:9000', access_key='minio', secret_key='minio12345', secure=False)
@@ -136,12 +134,13 @@ else
 fi
 echo ""
 
-# Step 6: Verify cleanup
-echo "[6/6] Verifying cleanup..."
+# Step 4: Verify cleanup
+echo "[4/6] Verifying cleanup..."
 AFTER_COUNTS=$(docker exec $DOCKER_CONTAINER psql -U $DB_USER -d $DB_NAME -t -A -F'|' -c "
 SELECT 
     (SELECT COUNT(*) FROM investigations),
     (SELECT COUNT(*) FROM data_sources),
+    (SELECT COUNT(*) FROM processed_records),
     (SELECT COUNT(*) FROM raw_transactions),
     (SELECT COUNT(*) FROM raw_calls),
     (SELECT COUNT(*) FROM raw_messages),
@@ -150,10 +149,10 @@ SELECT
 ")
 
 # Parse after counts
-IFS='|' read -r AFTER_INV AFTER_DS AFTER_RAW_TX AFTER_RAW_CALL AFTER_RAW_MSG AFTER_CAN_TX AFTER_CAN_COMM <<< "$AFTER_COUNTS"
+IFS='|' read -r AFTER_INV AFTER_DS AFTER_PR AFTER_RAW_TX AFTER_RAW_CALL AFTER_RAW_MSG AFTER_CAN_TX AFTER_CAN_COMM <<< "$AFTER_COUNTS"
 
 # Calculate total remaining
-TOTAL_REMAINING=$((AFTER_INV + AFTER_DS + AFTER_RAW_TX + AFTER_RAW_CALL + AFTER_RAW_MSG + AFTER_CAN_TX + AFTER_CAN_COMM))
+TOTAL_REMAINING=$((AFTER_INV + AFTER_DS + AFTER_PR + AFTER_RAW_TX + AFTER_RAW_CALL + AFTER_RAW_MSG + AFTER_CAN_TX + AFTER_CAN_COMM))
 
 if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "✓ All data successfully removed"
@@ -164,6 +163,7 @@ if [ "$TOTAL_REMAINING" = "0" ]; then
     echo "Database cleanup:"
     echo "  - Investigations: $INV_COUNT → 0"
     echo "  - Data sources: $DS_COUNT → 0"
+    echo "  - Processed records: $PR_COUNT → 0"
     echo "  - Raw transactions: $RAW_TX_COUNT → 0"
     echo "  - Raw calls: $RAW_CALL_COUNT → 0"
     echo "  - Raw messages: $RAW_MSG_COUNT → 0"
@@ -213,6 +213,7 @@ else
     echo "Current state:"
     echo "  - Investigations: $AFTER_INV"
     echo "  - Data sources: $AFTER_DS"
+    echo "  - Processed records: $AFTER_PR"
     echo "  - Raw transactions: $AFTER_RAW_TX"
     echo "  - Raw calls: $AFTER_RAW_CALL"
     echo "  - Raw messages: $AFTER_RAW_MSG"
