@@ -21,12 +21,17 @@ if ! docker ps | grep -q dp_keycloak; then
     exit 1
 fi
 
-# Wait for Keycloak to be ready
+# Wait for Keycloak to be ready by trying to authenticate
 echo -e "${YELLOW}⏳ Waiting for Keycloak to be ready...${NC}"
-MAX_RETRIES=60
+MAX_RETRIES=30
 RETRY_COUNT=0
 
-until docker exec dp_keycloak curl -sf http://localhost:8080/health/ready > /dev/null 2>&1; do
+until docker exec dp_keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 \
+  --realm master \
+  --user admin \
+  --password admin \
+  > /dev/null 2>&1; do
   RETRY_COUNT=$((RETRY_COUNT + 1))
   if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
     echo -e "${RED}❌ Keycloak did not become ready in time${NC}"
@@ -36,19 +41,7 @@ until docker exec dp_keycloak curl -sf http://localhost:8080/health/ready > /dev
   sleep 5
 done
 
-echo -e "${GREEN}✅ Keycloak is ready!${NC}"
-echo ""
-
-# Login to Keycloak admin CLI
-echo -e "${BLUE}[1/7]${NC} Authenticating with Keycloak..."
-docker exec dp_keycloak /opt/keycloak/bin/kcadm.sh config credentials \
-  --server http://localhost:8080 \
-  --realm master \
-  --user admin \
-  --password admin_secure_2025! \
-  > /dev/null 2>&1
-
-echo -e "${GREEN}✅ Authenticated${NC}"
+echo -e "${GREEN}✅ Keycloak is ready and authenticated!${NC}"
 echo ""
 
 # Create realm
