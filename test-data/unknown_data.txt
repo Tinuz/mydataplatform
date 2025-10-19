@@ -1,9 +1,0 @@
-This is just some random text file
-that should not match any file type pattern.
-
-It contains no structured data,
-no CSV headers,
-no bank keywords,
-no telecom information.
-
-This file should be marked as 'skipped' by the detection system.

@@ -110,15 +110,6 @@ services:
           memory: 2g  # Increased from 1g for crypto_stream with pyiceberg + kafka-python
     profiles: [ "standard" ]
 
-  meltano:
-    image: meltano/meltano:latest
-    container_name: dp_meltano
-    working_dir: /project
-    command: [ "sleep", "infinity" ]
-    volumes:
-      - ./meltano:/project
-    profiles: [ "standard" ]
-
   marquez:
     platform: linux/arm64
     image: marquezproject/marquez:0.51.1
@@ -329,9 +320,10 @@ services:
   swagger-ui:
     image: swaggerapi/swagger-ui:latest
     environment:
-      SWAGGER_JSON: /usr/share/nginx/html/openapi.yaml
+      SWAGGER_JSON: /openapi.yaml
+      BASE_URL: /
     volumes:
-      - ./api/openapi.yaml:/usr/share/nginx/html/openapi.yaml:ro
+      - ./api/openapi.yaml:/openapi.yaml:ro
     ports:
       - "8082:8080"  # Changed from 8081 to avoid conflict with DataHub
     depends_on:
@@ -594,6 +586,65 @@ services:
       resources:
         limits:
           memory: 1.5g
+    profiles: [ "standard" ]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: dp_oauth2_proxy
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      dagster:
+        condition: service_started
+    environment:
+      # OAuth Provider (Keycloak OIDC)
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_OIDC_ISSUER_URL: http://keycloak:8080/realms/data-platform
+      
+      # Client credentials
+      OAUTH2_PROXY_CLIENT_ID: dagster
+      OAUTH2_PROXY_CLIENT_SECRET: dagster_client_secret_2025
+      
+      # URLs
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback
+      OAUTH2_PROXY_UPSTREAMS: http://dagster:3000
+      
+      # Cookie settings
+      OAUTH2_PROXY_COOKIE_SECRET: eOWvPEmrVmW24wemknp83rAKWiE6PkVd
+      OAUTH2_PROXY_COOKIE_SECURE: "false"
+      OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_dagster
+      
+      # Email domain (allow all for demo)
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      
+      # Skip provider CA verification (for development with self-signed certs)
+      OAUTH2_PROXY_SKIP_PROVIDER_CA_VERIFY: "true"
+      OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY: "true"
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "false"
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      
+      # Logging
+      OAUTH2_PROXY_LOGGING_FILENAME: ""
+      OAUTH2_PROXY_STANDARD_LOGGING: "true"
+      OAUTH2_PROXY_AUTH_LOGGING: "true"
+      OAUTH2_PROXY_REQUEST_LOGGING: "true"
+      
+      # Pass user info to upstream
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      
+      # Scope
+      OAUTH2_PROXY_SCOPE: "openid profile email"
+      
+      # Session settings
+      OAUTH2_PROXY_SESSION_STORE_TYPE: cookie
+      OAUTH2_PROXY_COOKIE_EXPIRE: 24h
+      OAUTH2_PROXY_COOKIE_REFRESH: 1h
+    ports:
+      - "4180:4180"
     profiles: [ "standard" ]
 
 volumes:
